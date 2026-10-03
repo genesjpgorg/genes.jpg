@@ -1,0 +1,271 @@
+{
+  "data": {
+    "pairs": 49954,
+    "species": 98,
+    "families": 41,
+    "orders": 22,
+    "classes": {
+      "Aves": 96,
+      "Actinopterygii": 2
+    },
+    "genes_per_species_median": 524.0,
+    "cds_bp_median": 1182.0,
+    "tokens_median": 200.0,
+    "identity_median": 0.73215,
+    "longevity_yrs": {
+      "min": 3.5,
+      "median": 17.6,
+      "max": 70.0
+    }
+  },
+  "split": {
+    "train": {
+      "species": 64,
+      "pairs": 32780,
+      "families": 30,
+      "top_families": {
+        "Anatidae": 8,
+        "Columbidae": 6,
+        "Scolopacidae": 5
+      },
+      "median_yrs": 16.950000000000003,
+      "min_yrs": 5.0,
+      "max_yrs": 70.0
+    },
+    "val": {
+      "species": 16,
+      "pairs": 7905,
+      "families": 8,
+      "top_families": {
+        "Falconidae": 4,
+        "Charadriidae": 3,
+        "Caprimulgidae": 3
+      },
+      "median_yrs": 13.6,
+      "min_yrs": 7.0,
+      "max_yrs": 25.6
+    },
+    "test": {
+      "species": 18,
+      "pairs": 9269,
+      "families": 3,
+      "top_families": {
+        "Ciconiidae": 8,
+        "Accipitridae": 8,
+        "Muscicapidae": 2
+      },
+      "median_yrs": 29.15,
+      "min_yrs": 3.5,
+      "max_yrs": 48.1
+    }
+  },
+  "baselines": {
+    "val": {
+      "train_mean": 0.1578624740547213,
+      "same_order_mean": 0.16378977405744571,
+      "n_with_order_in_train": 7,
+      "same_family_mean": 0.1578624740547213,
+      "n_with_family_in_train": 0
+    },
+    "test": {
+      "train_mean": 0.25416473057467565,
+      "same_order_mean": 0.22817414696402258,
+      "n_with_order_in_train": 10,
+      "same_family_mean": 0.25416473057467565,
+      "n_with_family_in_train": 0
+    }
+  },
+  "final": {
+    "val": {
+      "pair_mse_z": 0.8287166102463659,
+      "pair_mae_log10": 0.189383869572241,
+      "species_mae_log10": 0.1584067065679502,
+      "baseline_species_mae_log10": 0.1578624740547213,
+      "species_spearman": 0.3029411764705882,
+      "species_pearson": 0.2087457294939482
+    },
+    "test": {
+      "pair_mse_z": 1.323238888381328,
+      "pair_mae_log10": 0.22667407998658756,
+      "species_mae_log10": 0.20339378466601504,
+      "baseline_species_mae_log10": 0.25416473057467565,
+      "species_spearman": 0.3498452012383901,
+      "species_pearson": 0.38621231233776976
+    }
+  },
+  "best_val": {
+    "epoch": 13.0,
+    "species_mae_log10": 0.13857237642901804,
+    "species_spearman": 0.4147058823529412
+  },
+  "train": {
+    "first_loss": 1.0048883746611432,
+    "last_loss": 0.6353558687567444,
+    "tok_per_s_median": 113268.2421800366,
+    "minutes": 25.458583891391754
+  },
+  "test_species": [
+    {
+      "ncbi_taxid": 8928,
+      "scientific_name": "Ciconia ciconia",
+      "class": "Aves",
+      "true_log10": 1.5911,
+      "pred_log10": 1.351699948310852,
+      "pred_sd": 0.11320000141859055,
+      "n_genes": 542
+    },
+    {
+      "ncbi_taxid": 8957,
+      "scientific_name": "Astur gentilis",
+      "class": "Aves",
+      "true_log10": 1.3424,
+      "pred_log10": 1.3336999416351318,
+      "pred_sd": 0.12110000103712082,
+      "n_genes": 536
+    },
+    {
+      "ncbi_taxid": 33586,
+      "scientific_name": "Mycteria ibis",
+      "class": "Aves",
+      "true_log10": 1.281,
+      "pred_log10": 1.19350004196167,
+      "pred_sd": 0.12870000302791595,
+      "n_genes": 306
+    },
+    {
+      "ncbi_taxid": 33587,
+      "scientific_name": "Mycteria americana",
+      "class": "Aves",
+      "true_log10": 1.4314,
+      "pred_log10": 1.3624999523162842,
+      "pred_sd": 0.10379999876022339,
+      "n_genes": 536
+    },
+    {
+      "ncbi_taxid": 33610,
+      "scientific_name": "Gypaetus barbatus",
+      "class": "Aves",
+      "true_log10": 1.6021,
+      "pred_log10": 1.3423999547958374,
+      "pred_sd": 0.10580000281333923,
+      "n_genes": 537
+    },
+    {
+      "ncbi_taxid": 36241,
+      "scientific_name": "Ciconia nigra",
+      "class": "Aves",
+      "true_log10": 1.4955,
+      "pred_log10": 1.316100001335144,
+      "pred_sd": 0.12120000272989273,
+      "n_genes": 504
+    },
+    {
+      "ncbi_taxid": 36247,
+      "scientific_name": "Gyps fulvus",
+      "class": "Aves",
+      "true_log10": 1.617,
+      "pred_log10": 1.3148000240325928,
+      "pred_sd": 0.125900000333786,
+      "n_genes": 524
+    },
+    {
+      "ncbi_taxid": 43466,
+      "scientific_name": "Circus cyaneus",
+      "class": "Aves",
+      "true_log10": 1.233,
+      "pred_log10": 1.3341000080108643,
+      "pred_sd": 0.11699999868869781,
+      "n_genes": 543
+    },
+    {
+      "ncbi_taxid": 43518,
+      "scientific_name": "Milvus milvus",
+      "class": "Aves",
+      "true_log10": 1.5798,
+      "pred_log10": 1.3008999824523926,
+      "pred_sd": 0.11959999799728394,
+      "n_genes": 510
+    },
+    {
+      "ncbi_taxid": 52775,
+      "scientific_name": "Ciconia boyciana",
+      "class": "Aves",
+      "true_log10": 1.6821,
+      "pred_log10": 1.3489999771118164,
+      "pred_sd": 0.11249999701976776,
+      "n_genes": 543
+    },
+    {
+      "ncbi_taxid": 52776,
+      "scientific_name": "Ciconia episcopus",
+      "class": "Aves",
+      "true_log10": 1.5051,
+      "pred_log10": 1.343500018119812,
+      "pred_sd": 0.11590000241994858,
+      "n_genes": 520
+    },
+    {
+      "ncbi_taxid": 52777,
+      "scientific_name": "Ciconia maguari",
+      "class": "Aves",
+      "true_log10": 1.3096,
+      "pred_log10": 1.3508000373840332,
+      "pred_sd": 0.11420000344514847,
+      "n_genes": 528
+    },
+    {
+      "ncbi_taxid": 52792,
+      "scientific_name": "Luscinia svecica",
+      "class": "Aves",
+      "true_log10": 1.0569,
+      "pred_log10": 1.0615999698638916,
+      "pred_sd": 0.07919999957084656,
+      "n_genes": 524
+    },
+    {
+      "ncbi_taxid": 202280,
+      "scientific_name": "Harpia harpyja",
+      "class": "Aves",
+      "true_log10": 1.2253,
+      "pred_log10": 1.3415000438690186,
+      "pred_sd": 0.10869999974966049,
+      "n_genes": 535
+    },
+    {
+      "ncbi_taxid": 252785,
+      "scientific_name": "Hieraaetus morphnoides",
+      "class": "Aves",
+      "true_log10": 1.5877,
+      "pred_log10": 1.3080999851226807,
+      "pred_sd": 0.12809999287128448,
+      "n_genes": 514
+    },
+    {
+      "ncbi_taxid": 387829,
+      "scientific_name": "Elanus axillaris",
+      "class": "Aves",
+      "true_log10": 0.5441,
+      "pred_log10": 1.2888000011444092,
+      "pred_sd": 0.1315000057220459,
+      "n_genes": 520
+    },
+    {
+      "ncbi_taxid": 1293958,
+      "scientific_name": "Muscicapa striata",
+      "class": "Aves",
+      "true_log10": 1.0719,
+      "pred_log10": 1.0683000087738037,
+      "pred_sd": 0.08699999749660492,
+      "n_genes": 531
+    },
+    {
+      "ncbi_taxid": 3150064,
+      "scientific_name": "Leptoptilos crumenifer",
+      "class": "Aves",
+      "true_log10": 1.6503,
+      "pred_log10": 1.1996999979019165,
+      "pred_sd": 0.14110000431537628,
+      "n_genes": 516
+    }
+  ]
+}
