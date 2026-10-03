@@ -30,6 +30,10 @@ Facts verified against the parquets and the hosts (2026-10, revision 5f2dc493...
   ``cc-by-nc-nd-4.0``, NULL (3.9%, all GBIF), ``cc-0-1.0``, ``other``, ``cc-by-nc-sa-*``,
   ``cc-by-sa-*``, ``all-rights-reserved``, ``cc-by-3.0``, ``cc-publicdomain``, ``cc-by-nc``,
   ``cc-by``, ``No known copyright restrictions``.
+- ``provenance.copyright_owner`` is never NULL but is the literal ``'not provided'`` for 27% of
+  Mammalia rows (``title`` for 100%): TreeOfLife-200M's fill value for a missing string. It
+  is not a rights holder, so :func:`provenance_value` maps it to None (``rights_holder`` /
+  ``license`` / ``license_url`` of a candidate are None when the source has nothing).
 """
 
 from __future__ import annotations
@@ -96,6 +100,9 @@ _CATALOG_COLUMNS = (
     "source_id",
 )
 _PROVENANCE_COLUMNS = ("license_name", "license_link", "copyright_owner", "title")
+MISSING_VALUE = "not provided"
+"""TreeOfLife-200M's fill value for a missing provenance string (``copyright_owner``,
+``title``); mapped to None by :func:`provenance_value`."""
 
 
 def _has_url(column: str) -> str:
@@ -149,6 +156,17 @@ def image_type_from_img_type(img_type: str | None) -> ImageType:
     if img_type.startswith("Museum Specimen"):
         return ImageType.museum_specimen
     return ImageType.unknown
+
+
+def provenance_value(value: object) -> str | None:
+    """A provenance string with TreeOfLife-200M's missing-value marker (``'not provided'``,
+    any case) and blanks turned into None; any other value is returned verbatim."""
+    if value is None:
+        return None
+    text = str(value)
+    if not text.strip() or text.strip().lower() == MISSING_VALUE:
+        return None
+    return text
 
 
 def url_host(url: str | None) -> str | None:
@@ -306,6 +324,8 @@ class TreeOfLife200MSource:
             "ordering": "md5('<seed>:' || uuid), then uuid; one row per (species, observation)"
             " chosen by the same key",
             "always_dropped": "rows with NULL/empty catalog.source_url",
+            "missing_value_marker": f"provenance {MISSING_VALUE!r} (and blanks) -> NULL in "
+            "license / license_url / rights_holder",
         }
 
     def select(
@@ -521,7 +541,7 @@ class TreeOfLife200MSource:
             image_type=image_type_from_img_type(row["img_type"]),
             source_image_type=row["img_type"],
             publisher=publisher,
-            license=row["license_name"],
-            license_url=row["license_link"],
-            rights_holder=row["copyright_owner"],
+            license=provenance_value(row["license_name"]),
+            license_url=provenance_value(row["license_link"]),
+            rights_holder=provenance_value(row["copyright_owner"]),
         )

@@ -1,10 +1,29 @@
 # Datasets for genome → images and phenotypes (genes.jpg)
 
-> **Status (2026-10-03).** The image side has been measured, not just surveyed: TreeOfLife-200M
-> holds 5,537 mammal species (250 of the 270 RefSeq mammal species), TreeOfLife-10M 4,089
-> (244), BioTrove 3,725 (256), iNaturalist 2021 246 (86) — see
-> [survey_mammals.md](survey_mammals.md). TreeOfLife-200M is the first image source; the
-> build pipeline and the first dataset are described in [creating_datasets.md](creating_datasets.md).
+## Status (2026-10-03)
+
+The image side has since been **measured** from each candidate dataset's own metadata, not only
+surveyed ([survey_mammals.md](survey_mammals.md); scripts and per-species tables under
+`data/datasets/_survey/<dataset>/`, every headline number recomputed by a second agent).
+Species-level mammal binomials, and their overlap with the **270 mammal species** that have a
+current NCBI RefSeq assembly (`assembly_summary_vertebrate_mammalian_refseq.txt`, 277
+assemblies, snapshot 2026-10-03):
+
+| Dataset (revision surveyed) | Mammal species | ∩ RefSeq species | Images in ∩ |
+|---|---|---|---|
+| TreeOfLife-200M (HF `5f2dc493`) | 5,537 | 250 | 2.25 M |
+| TreeOfLife-10M (HF `91debffb`) | 4,089 | 244 | 66 k |
+| BioTrove (HF `4839f424`) | 3,725 | 256 | 1.90 M |
+| iNaturalist 2021 (2021-03-01 release) | 246 | 86 | 25 k |
+
+**Chosen: TreeOfLife-200M** (most mammal species, per-image licences in `provenance.parquet`,
+image bytes fetchable from the catalogued URLs). The build pipeline lives in `src/datasets` and
+the first dataset, `tol200m-mammals-smoke` (5 species from 5 orders, 5 chromosome-level RefSeq
+genomes, 250 citizen-science images, 250 pairs), is built, validated and independently audited:
+see [creating_datasets.md](creating_datasets.md) and
+[audits/tol200m-mammals-smoke.md](audits/tol200m-mammals-smoke.md). The rest of
+this page is the literature and resource survey that preceded the measurement; its access notes
+are still the reference for sources not yet implemented.
 
 Initial literature survey: Amass API, BiomedCore (PubMed/PMC literature), 22 searches, about $1 of credits. Amass indexes **papers that describe datasets**, not the raw genome or image data. Additional resources and access notes below were checked against official documentation, dataset cards, or publisher archives on **2026-10-03**; raw archives were not downloaded. Entries explicitly marked unverified remain leads.
 

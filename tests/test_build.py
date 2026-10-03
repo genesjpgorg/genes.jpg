@@ -413,8 +413,10 @@ def test_load_config_paths_and_override(tmp_path):
     assert "config_path" not in cfg.model_dump()
 
     cfg = load_config(path, root_override="/abs/elsewhere", repo_root=tmp_path)
-    assert cfg.root == Path("/abs/elsewhere")
-    assert build._command(cfg) == f"genes-datasets build {path} --root-override /abs/elsewhere"
+    assert cfg.root == Path("/abs/elsewhere") and cfg.repo_root == tmp_path
+    # the command is shown relative to the repo root the config was loaded against
+    assert build._command(cfg) == "genes-datasets build c.json --root-override /abs/elsewhere"
+    assert "repo_root" not in cfg.model_dump()
 
 
 def test_load_config_relative_root_override_is_cwd_relative(tmp_path, monkeypatch):
@@ -717,9 +719,15 @@ def test_build_full_dataset(env):
     assert m.selection["image_source"] == {"fake": True, "licenses": "cc_only"}
     assert m.selection["config"]["images"]["per_species"] == 3
     assert m.selection["builder"]["candidates_per_species"] == 4
-    assert m.selection["image_settings"]["images"]["min_side"] == 64
-    assert "per_species" not in m.selection["image_settings"]["images"]
+    assert "image_settings" not in m.selection  # derived from config/builder/image_source
+    settings = build._previous_image_settings(root)
+    assert settings["images"]["min_side"] == 64 and settings["images"]["seed"] == 0
+    assert settings["images"]["inat_size_variant"] == "large"
+    assert "per_species" not in settings["images"]
+    assert settings["image_source"] == m.selection["image_source"]
     assert "policy" not in m.selection["config"]["genomes"]  # config as written: no defaults
+    assert m.selection["config"]["root"] == str(env.tmp_path / "ds")  # outside the repo: as is
+    assert m.selection["config_path"] == str(env.tmp_path / "config.json")
     assert m.selection["assemblies"]["Castor canadensis"]["snapshot_accession"] == "GCF_000000001.1"
     assert m.selection["downloads"]["Vulpes vulpes"]["n_failed"] == 1
     assert m.selection["command"] == f"genes-datasets build {env.tmp_path / 'config.json'}"
@@ -740,6 +748,36 @@ def test_build_full_dataset(env):
     assert f"genes-datasets build {env.tmp_path / 'config.json'}" in readme
     assert '"per_species": 3' in readme
     assert "snapshot would pick" in readme
+
+
+def test_manifest_and_readme_record_paths_repo_relative(env):
+    """Paths the config gives relative to the repo root are recorded that way in dataset.json
+    and README (no machine-specific prefix), although load_config resolved them."""
+    config = env.write_config(
+        root="data/datasets/ds-rel", genomes__assembly_summary_snapshot="assembly_summary.txt"
+    )
+    cfg = load_config(config, repo_root=env.tmp_path)
+    assert cfg.root == env.tmp_path / "data" / "datasets" / "ds-rel"
+    assert cfg.genomes.assembly_summary_snapshot == env.snapshot
+    report = build.build(cfg, progress=False)
+    root = env.tmp_path / "data" / "datasets" / "ds-rel"
+    assert report.root == str(root) and report.command == "genes-datasets build config.json"
+    m = manifest.read_manifest(root)
+    written = m.selection["config"]
+    assert written["root"] == "data/datasets/ds-rel"
+    assert written["genomes"]["assembly_summary_snapshot"] == "assembly_summary.txt"
+    assert m.selection["config_path"] == "config.json"
+    assert str(env.tmp_path) not in json.dumps(written)
+    assert build.config_as_written(cfg) == written
+    readme = (root / "README.md").read_text()
+    assert "Config (`config.json`, as written" in readme
+    assert '"root": "data/datasets/ds-rel"' in readme
+    assert '"assembly_summary_snapshot": "assembly_summary.txt"' in readme
+    assert str(env.tmp_path) not in readme.split("## How it was built")[1].split("```json")[1]
+    assert "## Caveats" in readme and "`rights_holder` is empty for 0 of 6 images" in readme
+    # rerun at the same root: the reconstructed settings match -> no settings warning
+    again = build.build(cfg, progress=False)
+    assert not any("image settings changed" in w for w in again.warnings)
 
 
 def test_rerun_is_idempotent(env):

@@ -166,6 +166,12 @@ class BuildConfig(BaseModel):
     images: ImagesConfig
     config_path: Path | None = Field(default=None, exclude=True)
     root_override: Path | None = Field(default=None, exclude=True)
+    repo_root: Path | None = Field(
+        default=None,
+        exclude=True,
+        description="base the relative paths of the file were resolved against (load_config); "
+        "paths under it are recorded repo-relative in dataset.json and README",
+    )
 
     @field_validator("species")
     @classmethod
@@ -199,12 +205,36 @@ def load_config(
         "root": override if override is not None else _absolute(config.root, repo_root),
         "config_path": path.resolve(),
         "root_override": override,
+        "repo_root": Path(repo_root),
     }
     if (snapshot := config.genomes.assembly_summary_snapshot) is not None:
         update["genomes"] = config.genomes.model_copy(
             update={"assembly_summary_snapshot": _absolute(snapshot, repo_root)}
         )
     return config.model_copy(update=update)
+
+
+def _portable(path: Path, config: BuildConfig) -> str:
+    """``path`` as written in the config: repo-relative POSIX when it lies under the repo root
+    the config was loaded against (``REPO_ROOT`` otherwise), else unchanged. Keeps machine-
+    specific prefixes such as ``/home/<user>/genes.jpg`` out of ``dataset.json`` and README."""
+    base = config.repo_root or REPO_ROOT
+    return path.relative_to(base).as_posix() if path.is_relative_to(base) else str(path)
+
+
+def config_as_written(config: BuildConfig) -> dict[str, object]:
+    """The config for ``dataset.json -> selection.config`` and the README: the keys the file
+    sets (defaults absent) with ``root`` and ``genomes.assembly_summary_snapshot`` repo-relative
+    again (``load_config`` made them absolute), so the record reads the same on every machine.
+    ``root`` is where the dataset was built: the configured root, or the ``--root-override``
+    that ``selection.command`` also shows."""
+    data = config.model_dump(mode="json", exclude_unset=True)
+    data["root"] = _portable(config.root, config)
+    genomes = data.get("genomes")
+    snapshot = config.genomes.assembly_summary_snapshot
+    if isinstance(genomes, dict) and snapshot is not None:
+        genomes["assembly_summary_snapshot"] = _portable(snapshot, config)
+    return data
 
 
 # --------------------------------------------------------------------------- sources
@@ -441,16 +471,33 @@ def _previous_urls(root: Path) -> dict[str, str]:
         return {}
 
 
+def image_settings(
+    config_images: Mapping[str, object], builder: Mapping[str, object], image_source: object
+) -> dict[str, object]:
+    """Everything that decides which bytes end up in ``images/`` (not how many): the images
+    config section as written minus ``per_species``, the builder's ``seed`` and ``min_side``
+    and the source's effective filters. Derived the same way from a live build and from an
+    earlier ``dataset.json -> selection`` (``config.images``, ``builder``, ``image_source``) so
+    the two can be diffed on rerun without a copy of their own in the manifest."""
+    section = {k: v for k, v in config_images.items() if k != "per_species"}
+    knobs = {k: builder[k] for k in ("seed", "min_side") if k in builder}
+    return {"images": {**section, **knobs}, "image_source": image_source}
+
+
 def _previous_image_settings(root: Path) -> dict[str, object] | None:
-    """``selection.image_settings`` of the manifest an earlier build left at ``root``."""
+    """``image_settings`` of the build whose manifest is at ``root``; None without one."""
     if not (root / manifest.MANIFEST_FILE).is_file():
         return None
     try:
-        settings = manifest.read_manifest(root).selection.get("image_settings")
+        selection = manifest.read_manifest(root).selection
     except Exception as exc:  # noqa: BLE001 - informational only
         log.warning("%s: ignoring unreadable previous manifest (%s)", root, exc)
         return None
-    return settings if isinstance(settings, dict) else None
+    config, builder = selection.get("config"), selection.get("builder")
+    if not isinstance(config, Mapping) or not isinstance(config.get("images"), Mapping):
+        return None
+    knobs = builder if isinstance(builder, Mapping) else {}
+    return image_settings(config["images"], knobs, selection.get("image_source"))
 
 
 def _flatten(value: object, prefix: str, out: dict[str, object]) -> dict[str, object]:
@@ -482,11 +529,9 @@ def _urls(candidate: ImageCandidate, preferred: str | None) -> list[str]:
 
 
 def _command(config: BuildConfig) -> str:
-    """The CLI invocation that reproduces this build."""
-    path = config.config_path or Path("<config>")
-    if path.is_absolute() and path.is_relative_to(REPO_ROOT):
-        path = path.relative_to(REPO_ROOT)
-    parts = ["genes-datasets", "build", str(path)]
+    """The CLI invocation that reproduces this build (run from the repo root)."""
+    path = _portable(config.config_path, config) if config.config_path else "<config>"
+    parts = ["genes-datasets", "build", path]
     if config.root_override is not None:
         parts += ["--root-override", str(config.root_override)]
     return shlex.join(parts)
@@ -887,28 +932,22 @@ class _Builder:
         }
 
     def image_settings(self, source: ImageSource) -> dict[str, object]:
-        """Everything that decides which bytes end up in ``images/`` (not how many): the
-        images config section as written, the source's effective filters and the builder's
-        own parameters. Compared against the previous build's on rerun."""
-        section = self.config.images.model_dump(
-            mode="json", exclude_unset=True, exclude={"per_species"}
-        )
-        builder = {k: v for k, v in self.builder_params().items() if k in ("seed", "min_side")}
-        return {
-            "images": {**section, **builder},
-            "image_source": source.selection_params(),
-        }
+        """This build's ``image_settings`` (module-level function), compared on rerun."""
+        section = config_as_written(self.config)["images"]
+        assert isinstance(section, dict)
+        return image_settings(section, self.builder_params(), source.selection_params())
 
     def selection(self, source: ImageSource) -> dict[str, object]:
-        """``dataset.json -> selection``: ``config`` is the file as written (paths resolved,
-        unset keys absent); ``image_source`` and ``builder`` are the effective parameters."""
+        """``dataset.json -> selection``: ``config`` is the file as written (repo-relative
+        paths, unset keys absent); ``image_source`` and ``builder`` are the effective
+        parameters (with ``config.images`` they define the ``image_settings`` diffed on rerun)."""
+        config_path = self.config.config_path
         return {
-            "config": self.config.model_dump(mode="json", exclude_unset=True),
-            "config_path": str(self.config.config_path) if self.config.config_path else None,
+            "config": config_as_written(self.config),
+            "config_path": _portable(config_path, self.config) if config_path else None,
             "command": self.report.command,
             "image_source": source.selection_params(),
             "builder": self.builder_params(),
-            "image_settings": self.image_settings(source),
             "assemblies": {
                 sp.record.scientific_name: {
                     "ncbi_taxid": sp.taxon.taxid,
@@ -1086,11 +1125,46 @@ def _readme(
         rev = f" @ {src.revision}" if src.revision else ""
         notes = f" - {src.license_notes}" if src.license_notes else ""
         lines.append(f"- {src.name}{rev} <{src.url}>{notes}")
-    config_label = (
-        str(config.config_path.relative_to(REPO_ROOT))
-        if config.config_path and config.config_path.is_relative_to(REPO_ROOT)
-        else str(config.config_path or "<config>")
-    )
+    n_no_holder = sum(i.rights_holder is None for i in image_records)
+    extra_records = [
+        f"{g.assembly_accession} ({g.n_sequences} records, {g.scaffold_count} scaffolds)"
+        for g in genomes
+        if g.n_sequences is not None
+        and g.scaffold_count is not None
+        and g.n_sequences > g.scaffold_count
+    ]
+    lines += [
+        "",
+        "## Caveats",
+        "",
+        (
+            "- `image_type` / `source_image_type` are the source's labels for the *record* (how "
+            "the observation was made), not a description of the picture, and the builder "
+            "applies no content filter: citizen-science uploads include camera-trap frames, "
+            "tracks, scat, remains and habitat or sign-only shots (e.g. a gnawed stump for a "
+            "beaver), so a species-dependent share of images does not show the animal. "
+            "Spot-check or add a content filter before treating an image as a photo of the "
+            "organism."
+        ),
+        (
+            f"- `rights_holder` is empty for {n_no_holder} of {len(image_records)} images: the "
+            "source recorded no rights holder (source placeholders such as 'not provided' are "
+            "stored as null). Attribute those by `publisher` and `source_url`."
+        ),
+        (
+            "- `genome_size` is NCBI's primary-assembly length (nuclear top-level sequences, "
+            "incl. gaps). The FASTA in `sequence_file` may additionally carry non-nuclear "
+            "sequences (e.g. a RefSeq mitochondrion), which `n_sequences` counts and "
+            "`genome_size` does not"
+            + (
+                "; here `n_sequences` exceeds `scaffold_count` for " + ", ".join(extra_records)
+                if extra_records
+                else ""
+            )
+            + "."
+        ),
+    ]
+    config_label = _portable(config.config_path, config) if config.config_path else "<config>"
     lines += [
         "",
         "## How it was built",
@@ -1099,10 +1173,10 @@ def _readme(
         report.command,
         "```",
         "",
-        f"Config (`{config_label}`, as written; paths resolved):",
+        f"Config (`{config_label}`, as written; relative paths are repo-relative):",
         "",
         "```json",
-        json.dumps(config.model_dump(mode="json", exclude_unset=True), indent=2),
+        json.dumps(config_as_written(config), indent=2),
         "```",
         "",
         (
@@ -1231,8 +1305,10 @@ __all__ = [
     "ImagesConfig",
     "SpeciesReport",
     "build",
+    "config_as_written",
     "construct_source",
     "format_report",
+    "image_settings",
     "load_config",
     "make_source",
     "resolve_species",

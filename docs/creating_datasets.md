@@ -172,9 +172,9 @@ What `build` does, in order:
 4. **Pairs** — one `PairRecord` per image to its species' assembly (`pairing =
    species_reference`).
 5. **Tables + manifest** — parquet and CSV for each table; `dataset.json` records the
-   source revision, snapshot, the full config, effective filters, assembly choices, download
-   statistics and warnings; a `README.md` with the per-species table and license breakdown is
-   generated.
+   source revision, snapshot, the full config (repo-relative paths), effective filters,
+   assembly choices, download statistics and warnings; a `README.md` with the per-species
+   table, license breakdown and caveats is generated.
 6. **Validation** — `validate_dataset(check_hashes=True)` re-checks every row against the
    schema, referential integrity, file presence, sizes and hashes, and the manifest counts.
    The build fails if anything is reported.
@@ -221,6 +221,18 @@ re-derived every genome checksum, image hash, catalog/provenance field, taxid an
 primary sources and found no defects. Looking at the photos themselves showed 83–92% live
 animals for four species but **only 17% for the beaver** — iNaturalist documents beavers
 mostly by chewed wood — so a content filter is required before a training-scale build.
+
+Known caveats (also listed in the generated `README.md`):
+
+- `image_type = citizen_science` mirrors the GBIF `img_type` label of the *record*, not what
+  the picture shows: besides sign-only photos, about a fifth of the images are IR camera-trap
+  frames uploaded as citizen-science observations. No content filter is applied at build time.
+- `rights_holder` is `null` for 62 of the 250 images: TreeOfLife-200M's provenance carries the
+  literal `not provided` there (27% of all Mammalia rows), which the source maps to `null`.
+- Two FASTA files also contain the RefSeq mitochondrion (GCF_023699985.2: NC_015247.1,
+  16,477 bp; GCF_030445035.2: NC_001821.1, 17,056 bp), so their `n_sequences` is
+  `scaffold_count + 1` and the FASTA is that much longer than `genome_size`, which is NCBI's
+  primary-assembly length.
 
 ## 6. Scaling up
 

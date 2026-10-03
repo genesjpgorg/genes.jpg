@@ -677,6 +677,50 @@ def test_problem_lists_are_capped() -> None:
 runner = CliRunner()
 
 
+def test_json_schema_is_a_valid_draft_2020_12_schema() -> None:
+    """Strict validators (jsonschema check_schema, ajv) must accept the published schema: the
+    $id may not carry a fragment (metaschema pattern ^[^#]*#?$) and every $ref must resolve."""
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = s.json_schema()
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert "#" not in schema["$id"] and schema["$id"] == s.SCHEMA_ID
+    assert schema["version"] == s.SCHEMA_VERSION
+    jsonschema.Draft202012Validator.check_schema(schema)  # raises SchemaError
+    names = [model.__name__ for model in s.RECORD_MODELS.values()] + ["DatasetManifest"]
+    assert set(names) <= set(schema["$defs"])
+    for name in names:  # every nested $ref resolves (an unresolvable one raises here)
+        ref = {"$ref": f"#/$defs/{name}", "$defs": schema["$defs"]}
+        assert list(jsonschema.Draft202012Validator(ref).iter_errors({}))  # required missing
+
+
+def test_exported_schema_file_is_in_sync() -> None:
+    """schemas/dataset.schema.json is generated: re-export (genes-datasets schema-export) after
+    changing the pydantic models."""
+    path = Path(__file__).resolve().parents[1] / "schemas" / "dataset.schema.json"
+    assert json.loads(path.read_text()) == s.json_schema()
+
+
+def test_rows_validate_against_exported_json_schema(built: Built) -> None:
+    """Rows written by write_table and the manifest validate against the exported JSON Schema
+    (what an external consumer without pydantic would check)."""
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = s.json_schema()
+    validator = jsonschema.Draft202012Validator
+    tables = {"species": built.species, "genomes": built.genomes}
+    tables |= {"images": built.images, "pairs": built.pairs}
+    for table, records in tables.items():
+        model = s.RECORD_MODELS[table]
+        sub = {"$ref": f"#/$defs/{model.__name__}", "$defs": schema["$defs"]}
+        v = validator(sub, format_checker=validator.FORMAT_CHECKER)
+        for rec in m.read_table(built.root, table):
+            errors = list(v.iter_errors(rec.model_dump(mode="json", by_alias=True)))
+            assert errors == [], (table, errors)
+        assert len(m.read_table(built.root, table)) == len(records)
+    v = validator({"$ref": "#/$defs/DatasetManifest", "$defs": schema["$defs"]})
+    manifest_json = json.loads((built.root / m.MANIFEST_FILE).read_text())
+    assert list(v.iter_errors(manifest_json)) == []
+
+
 def test_cli_schema_export(tmp_path: Path) -> None:
     out = tmp_path / "schemas" / "dataset.schema.json"
     result = runner.invoke(app, ["schema-export", "--out", str(out)])

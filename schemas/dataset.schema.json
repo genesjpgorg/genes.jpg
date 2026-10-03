@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/genesjpgorg/genes.jpg/schemas/dataset.schema.json#v0.1.0",
+  "$id": "https://github.com/genesjpgorg/genes.jpg/schemas/dataset.schema.json",
   "title": "genes.jpg genome <-> image dataset",
   "version": "0.1.0",
   "description": "A dataset directory holds dataset.json (DatasetManifest) and the tables species/genomes/images/pairs; rows of each table validate against the corresponding record schema in $defs.",
@@ -241,7 +241,7 @@
             }
           ],
           "default": null,
-          "description": "total sequence length (bp) incl. gaps",
+          "description": "NCBI genome_size / total_sequence_length: total length (bp, incl. gaps) of the top-level sequences of the *primary* (nuclear) assembly. Non-nuclear sequences that NCBI ships in sequence_file (e.g. a RefSeq mitochondrion) are not counted here",
           "title": "Genome Size"
         },
         "genome_size_ungapped": {
@@ -254,6 +254,7 @@
             }
           ],
           "default": null,
+          "description": "NCBI total_ungapped_length of the primary assembly (bp)",
           "title": "Genome Size Ungapped"
         },
         "gc_percent": {
@@ -345,7 +346,7 @@
             }
           ],
           "default": null,
-          "description": "number of FASTA records (chromosomes/scaffolds)",
+          "description": "number of FASTA records in sequence_file: chromosomes/scaffolds plus any non-nuclear sequence NCBI ships with the assembly, so it can exceed scaffold_count by the number of organelle records",
           "title": "N Sequences"
         },
         "extra_files": {
@@ -474,7 +475,8 @@
         },
         "image_type": {
           "$ref": "#/$defs/ImageType",
-          "default": "unknown"
+          "default": "unknown",
+          "description": "the source's record-level context label (see ImageType), not a content classification: a citizen_science record may be a camera-trap frame or show tracks, sign or remains rather than the animal"
         },
         "source_image_type": {
           "anyOf": [
@@ -536,6 +538,7 @@
             }
           ],
           "default": null,
+          "description": "rights holder / copyright owner as given by the source; None when the source records none (source placeholders such as 'not provided' are mapped to None)",
           "title": "Rights Holder"
         },
         "file": {
@@ -755,7 +758,7 @@
           "additionalProperties": {
             "type": "integer"
           },
-          "description": "summary counts: n_species, n_genomes, n_images, n_pairs, genome_bytes, image_bytes",
+          "description": "summary counts: n_species, n_genomes, genome_bytes, plus n_images, n_pairs, image_bytes",
           "title": "Counts",
           "type": "object"
         },

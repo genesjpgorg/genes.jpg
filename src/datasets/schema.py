@@ -100,9 +100,14 @@ class GenomeRecord(_Record):
     source: Literal["ncbi_refseq", "ncbi_genbank"] = "ncbi_refseq"
     release_date: str | None = Field(default=None, description="YYYY-MM-DD")
     genome_size: int | None = Field(
-        default=None, description="total sequence length (bp) incl. gaps"
+        default=None,
+        description="NCBI genome_size / total_sequence_length: total length (bp, incl. gaps) of "
+        "the top-level sequences of the *primary* (nuclear) assembly. Non-nuclear sequences "
+        "that NCBI ships in sequence_file (e.g. a RefSeq mitochondrion) are not counted here",
     )
-    genome_size_ungapped: int | None = None
+    genome_size_ungapped: int | None = Field(
+        default=None, description="NCBI total_ungapped_length of the primary assembly (bp)"
+    )
     gc_percent: float | None = None
     scaffold_count: int | None = None
     contig_count: int | None = None
@@ -117,7 +122,10 @@ class GenomeRecord(_Record):
     )
     sequence_bytes: int
     n_sequences: int | None = Field(
-        default=None, description="number of FASTA records (chromosomes/scaffolds)"
+        default=None,
+        description="number of FASTA records in sequence_file: chromosomes/scaffolds plus any "
+        "non-nuclear sequence NCBI ships with the assembly, so it can exceed scaffold_count "
+        "by the number of organelle records",
     )
     extra_files: list[str] = Field(
         default_factory=list,
@@ -151,7 +159,12 @@ class ImageRecord(_Record):
     )
     source_url: str = Field(description="URL the image bytes were downloaded from")
     original_label: str = Field(description="scientific name as given by the source")
-    image_type: ImageType = ImageType.unknown
+    image_type: ImageType = Field(
+        default=ImageType.unknown,
+        description="the source's record-level context label (see ImageType), not a content "
+        "classification: a citizen_science record may be a camera-trap frame or show tracks, "
+        "sign or remains rather than the animal",
+    )
     source_image_type: str | None = Field(
         default=None, description="source's own image-type/organ label, verbatim"
     )
@@ -160,7 +173,11 @@ class ImageRecord(_Record):
         default=None, description="license name as given by the source, e.g. 'CC BY 4.0'"
     )
     license_url: str | None = None
-    rights_holder: str | None = None
+    rights_holder: str | None = Field(
+        default=None,
+        description="rights holder / copyright owner as given by the source; None when the "
+        "source records none (source placeholders such as 'not provided' are mapped to None)",
+    )
     file: str = Field(description="path relative to dataset root")
     sha256: str
     bytes: int
@@ -209,7 +226,8 @@ class DatasetManifest(_Record):
     tables: dict[Literal["species", "genomes", "images", "pairs"], TableInfo]
     counts: dict[str, int] = Field(
         default_factory=dict,
-        description="summary counts: n_species, n_genomes, n_images, n_pairs, genome_bytes, image_bytes",
+        description="summary counts: n_species, n_genomes, genome_bytes, plus n_images, n_pairs, "
+        "image_bytes",
     )
     selection: dict[str, object] = Field(
         default_factory=dict,
@@ -225,16 +243,28 @@ RECORD_MODELS: dict[str, type[BaseModel]] = {
 }
 
 
+SCHEMA_ID = "https://github.com/genesjpgorg/genes.jpg/schemas/dataset.schema.json"
+"""``$id`` of the exported schema. A plain URI without a fragment: draft 2020-12 forbids
+non-empty fragments in ``$id`` (``jsonschema.Draft202012Validator.check_schema`` rejects
+them); the schema version lives in the ``version`` key."""
+
+
 def json_schema() -> dict:
     """Single JSON Schema document with every record type under ``$defs``."""
     defs: dict[str, dict] = {}
-    for model in (SpeciesRecord, GenomeRecord, ImageRecord, PairRecord, DatasetManifest):
+    for model in (
+        SpeciesRecord,
+        GenomeRecord,
+        ImageRecord,
+        PairRecord,
+        DatasetManifest,
+    ):
         schema = model.model_json_schema(ref_template="#/$defs/{model}", by_alias=True)
         defs.update(schema.pop("$defs", {}))
         defs[model.__name__] = schema
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": f"https://github.com/genesjpgorg/genes.jpg/schemas/dataset.schema.json#v{SCHEMA_VERSION}",
+        "$id": SCHEMA_ID,
         "title": "genes.jpg genome <-> image dataset",
         "version": SCHEMA_VERSION,
         "description": (

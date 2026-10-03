@@ -174,6 +174,16 @@ def test_image_type_mapping():
     assert image_type_from_img_type("Something new") is ImageType.unknown
 
 
+def test_provenance_value():
+    assert tol.provenance_value("not provided") is None
+    assert tol.provenance_value(" Not Provided ") is None  # any case / surrounding blanks
+    assert tol.provenance_value("") is None and tol.provenance_value("  ") is None
+    assert tol.provenance_value(None) is None
+    assert tol.provenance_value("someone") == "someone"
+    assert tol.provenance_value("not provided by x") == "not provided by x"  # not the marker
+    assert tol.provenance_value("Unknown") == "Unknown"  # a user-entered value stays verbatim
+
+
 def test_constructor_validation(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
         TreeOfLife200MSource(tmp_path, revision="x")
@@ -472,6 +482,30 @@ def test_fixture_missing_url_and_provenance(tmp_path: Path):
     assert permissive.species_summary(["Vulpes vulpes"])[0]["n_eligible"] == 1
 
 
+def test_fixture_missing_value_marker_becomes_none(tmp_path: Path):
+    """TreeOfLife-200M writes 'not provided' instead of NULL in copyright_owner (27% of the
+    Mammalia rows); a candidate must carry None there, not the placeholder."""
+    rows = [
+        row("np", owner="not provided"),
+        row("npc", owner="Not Provided "),
+        row("blank", owner=""),
+        row("real", owner="Jane Doe"),
+        row("nolic", owner="not provided", license="not provided"),
+    ]
+    src = make_source(tmp_path, rows, licenses="any")
+    by_id = {
+        c.candidate_id: c for c in src.select(["Vulpes vulpes"], per_species=10)["Vulpes vulpes"]
+    }
+    assert set(by_id) == {"np", "npc", "blank", "real", "nolic"}
+    assert by_id["np"].rights_holder is None and by_id["npc"].rights_holder is None
+    assert by_id["blank"].rights_holder is None and by_id["real"].rights_holder == "Jane Doe"
+    assert by_id["nolic"].license is None and by_id["real"].license == "cc-by-nc-4.0"
+    assert "not provided" in src.selection_params()["missing_value_marker"]
+    # the marker is not a CC licence: dropped under cc_only like a NULL licence
+    strict = make_source(tmp_path, rows, licenses="cc_only")
+    assert "nolic" not in ids(strict.select(["Vulpes vulpes"], per_species=10)["Vulpes vulpes"])
+
+
 def test_source_info_and_selection_params(tmp_path: Path):
     src = make_source(tmp_path, [row("a")], revision="abc123", licenses="permissive")
     info = src.source_info()
@@ -570,9 +604,11 @@ def test_real_candidates_satisfy_filters(source, smoke):
         assert license_allowed(r["license_name"], source.licenses)
         assert tol.url_host(r["source_url"]) not in source.exclude_hosts
         assert r["class"] == "Mammalia" and r["scientific_name"] == c.original_label
-        assert (c.license, c.license_url, c.rights_holder, c.publisher, c.source_id) == (
-            r["license_name"], r["license_link"], r["copyright_owner"], r["publisher"], r["source_id"]
+        assert (c.license, c.license_url, c.publisher, c.source_id) == (
+            r["license_name"], r["license_link"], r["publisher"], r["source_id"]
         )  # fmt: skip
+        assert c.rights_holder == tol.provenance_value(r["copyright_owner"])
+        assert c.rights_holder != "not provided" and c.rights_holder != ""
         expected_url = (
             rewrite_inat_url(r["source_url"], source.inat_size_variant) or r["source_url"]
         )
