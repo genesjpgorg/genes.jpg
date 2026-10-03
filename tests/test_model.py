@@ -1,3 +1,4 @@
+import json
 import zlib
 
 import pytest
@@ -190,7 +191,13 @@ def _fake_assembly(tmp_path, rng):
     rng = random.Random(rng)
     chroms = {
         n: "".join(rng.choice("ACGTacgt") for _ in range(L))
-        for n, L in [("NC_1.1", 30_000), ("NC_2.1", 25_000), ("NW_3.1", 500), ("NC_MT.1", 16_000)]
+        for n, L in [
+            ("NC_1.1", 30_000),
+            ("NC_2.1", 25_000),
+            ("NW_3.1", 500),
+            ("NT_ALT.1", 12_000),
+            ("NC_MT.1", 16_000),
+        ]
     }
     fa = tmp_path / "x_genomic.fna.gz"
     with gzip.open(fa, "wt") as f:
@@ -203,6 +210,16 @@ def _fake_assembly(tmp_path, rng):
         ["2", "assembled-molecule", "2", "Chromosome", "CM2.1", "=", "NC_2.1", "Primary Assembly"],
         ["u", "unplaced-scaffold", "na", "na", "JA3.1", "=", "NW_3.1", "Primary Assembly"],
         ["MT", "assembled-molecule", "MT", "Mitochondrion", "na", "<>", "NC_MT.1", "non-nuclear"],
+        [
+            "HSCHR1_ALT",
+            "alt-scaffold",
+            "1",
+            "Chromosome",
+            "KI1.1",
+            "=",
+            "NT_ALT.1",
+            "ALT_REF_LOCI_1",
+        ],
     ]
     report.write_text("# Sequence-Name\tetc\n" + "".join("\t".join(r) + "\n" for r in rows))
     return fa, report, chroms
@@ -214,13 +231,17 @@ def test_pack_genome_nuclear_only_and_windows(tmp_path):
     fa, report, chroms = _fake_assembly(tmp_path, 0)
     out = pack_genome(fa, report, tmp_path / "packed")
     g = PackedGenome(out, window=10_000)
-    nuclear = {n: s.upper() for n, s in chroms.items() if n != "NC_MT.1"}
+    nuclear = {n: s.upper() for n, s in chroms.items() if n not in ("NC_MT.1", "NT_ALT.1")}
     assert g.seq.size == sum(map(len, nuclear.values()))
     assert len(g.spans) == 2  # the 500 bp scaffold is shorter than a window
     w = g.windows(8)
     assert w == PackedGenome(out, window=10_000).windows(8)  # fixed windows are deterministic
     assert all(len(x) == 10_000 and any(x in s for s in nuclear.values()) for x in w)
     assert not any(x in chroms["NC_MT.1"].upper() for x in w)
+    assert sorted(json.loads((out / "index.json").read_text())["excluded"]) == [
+        "NC_MT.1",
+        "NT_ALT.1",
+    ]
 
 
 def test_alignment_trains_on_sampled_windows():
@@ -238,3 +259,16 @@ def test_alignment_trains_on_sampled_windows():
 
     train_align(model, None, labels, img, img, epochs=2, batch_size=16, sample_dna=sample)
     assert calls == [16, 16, 16] * 2
+
+
+def test_pooled_metrics_unseen_species_must_beat_seen():
+    from genesjpg.align import pooled_metrics
+
+    e = torch.eye(3)
+    gallery, g_labels, g_genera = e, ["a a", "b b", "c c"], ["a", "b", "c"]
+    # a query for species "c c" that lands nearest to "a a": wrong in the pooled gallery
+    q = F.normalize(torch.tensor([[1.0, 0.0, 0.5]]), dim=-1)
+    m = pooled_metrics(q, ["c c"], ["c"], gallery, g_labels, g_genera)
+    assert m == {"pooled_species_top1": 0.0, "pooled_genus_top1": 0.0}
+    # against its own single-species split it would be trivially right
+    assert retrieval_metrics(q, e[2:], ["c c"], ["c"])["species_top1"] == 1.0

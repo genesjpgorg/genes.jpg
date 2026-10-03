@@ -73,6 +73,25 @@ def retrieval_metrics(
     }
 
 
+def pooled_metrics(
+    query: torch.Tensor,
+    labels: list[str],
+    genera: list[str],
+    gallery: torch.Tensor,
+    gallery_labels: list[str],
+    gallery_genera: list[str],
+) -> dict:
+    """Species/genus top-1 of queries against a gallery that pools several splits (e.g. all held-out photos of
+    seen *and* unseen species), so an unseen species must beat the seen ones, not just itself."""
+    nearest = (query @ gallery.T).argmax(1).tolist()
+    n = len(query)
+    return {
+        "pooled_species_top1": sum(gallery_labels[j] == labels[i] for i, j in enumerate(nearest))
+        / n,
+        "pooled_genus_top1": sum(gallery_genera[j] == genera[i] for i, j in enumerate(nearest)) / n,
+    }
+
+
 def train_align(
     model: AlignModel,
     seqs: list[str] | None,
