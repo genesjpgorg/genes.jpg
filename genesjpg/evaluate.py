@@ -3,7 +3,7 @@
 Every method maps a species to one or more query vectors in BioCLIP image space. Each query is matched against the
 centroids of all species' held-out photos (``val`` photos of training species, all photos of ``val_unseen`` species),
 and scored by whether the nearest centroid (top-1) or any of the 5 nearest (top-5) shares the query species' species,
-genus, family and order. A method that maps an unseen deer to another deer gets genus or family credit.
+genus, family, order and class. A method that maps an unseen deer to another deer gets genus or family credit.
 
 Methods:
 - ``chance``: the expected score of a uniformly random candidate species.
@@ -27,11 +27,17 @@ import torch.nn.functional as F
 
 from .data import label, taxonomy_text
 
-RANKS = ("species", "genus", "family", "order")
+RANKS = ("species", "genus", "family", "order", "class")
 
 
 def _ranks(r: dict) -> dict:
-    return {"species": label(r), "genus": r["genus"], "family": r["family"], "order": r["order"]}
+    return {
+        "species": label(r),
+        "genus": r["genus"],
+        "family": r["family"],
+        "order": r["order"],
+        "class": r.get("class", ""),
+    }
 
 
 def species_table(records: list[dict], emb: dict, index: dict) -> dict:
@@ -151,7 +157,7 @@ def kmer_nn_queries(table: dict, targets: list[str], n_windows: int = 64, k: int
 
 def caption_queries(table: dict, targets: list[str], clip, rank: str) -> dict:
     """BioCLIP text embedding of each target's taxonomy caption, truncated after ``rank``."""
-    keep = {"species": 5, "genus": 4, "family": 3, "order": 2}[rank]
+    keep = {"species": 5, "genus": 4, "family": 3, "order": 2, "class": 1}[rank]
     texts = {}
     for t in targets:
         r = dict(table[t]["rec"])

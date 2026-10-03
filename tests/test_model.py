@@ -306,10 +306,10 @@ def _toy_table():
     names = [("A", "A a"), ("A", "A b"), ("B", "B c"), ("B", "B d")]
     table = {}
     for i, (g, sp) in enumerate(names):
-        rec = {"species": sp, "genus": g, "family": "F", "order": "O"}
+        rec = {"species": sp, "genus": g, "family": "F", "order": "O", "class": "C"}
         table[str(i)] = {
             "rec": rec,
-            "ranks": {"species": sp, "genus": g, "family": "F", "order": "O"},
+            "ranks": {"species": sp, "genus": g, "family": "F", "order": "O", "class": "C"},
             "unseen": i == 3,
             "held": torch.eye(8)[i],
             "train": torch.eye(8)[i],
