@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .venv/
+data/
+samples/
+*.egg-info/
