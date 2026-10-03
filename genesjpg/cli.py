@@ -129,7 +129,7 @@ def cmd_train_prior(a):
     def eval_fn(p):
         out = {}
         for s, (q, im, labs, gens) in evals.items():
-            g = torch.Generator().manual_seed(0)
+            g = torch.Generator(device=a.device).manual_seed(0)
             sampled = p.sample(
                 q.to(a.device), steps=a.sample_steps, guidance=a.guidance, generator=g
             ).cpu()
@@ -188,7 +188,9 @@ def cmd_generate(a):
     recs, emb, _ = _load(a.data)
     seq = a.dna
     if a.processid:
-        rec = next(r for r in recs if r["processid"] == a.processid)
+        rec = next((r for r in recs if r["processid"] == a.processid), None)
+        if rec is None:
+            raise SystemExit(f"processid {a.processid!r} not found in records.csv")
         seq = rec["dna_barcode"]
         print(f"{a.processid}: true label {label(rec)}")
     by_id = {r["processid"]: r for r in recs}

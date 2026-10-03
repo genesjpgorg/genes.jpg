@@ -1,10 +1,13 @@
+import zlib
+
 import pytest
 
 torch = pytest.importorskip("torch", reason="model tests need `uv sync --extra model`")
 import torch.nn.functional as F
 
+from genesjpg import data
 from genesjpg.align import AlignModel, contrastive_loss, retrieval_metrics, train_align
-from genesjpg.data import label, synthetic_records, taxonomy_text
+from genesjpg.data import Entry, label, synthetic_records, taxonomy_text
 from genesjpg.encoders import MODERNGENA, DNAEncoder, HFTokenizer
 from genesjpg.pipeline import GenomeToImage, load_align, load_prior, save_align, save_prior
 from genesjpg.prior import DiffusionPrior, train_prior
@@ -97,3 +100,55 @@ def test_decoder_and_end_to_end_with_tiny_sd():
     model = GenomeToImage(AlignModel(DNAEncoder.tiny()), DiffusionPrior(width=64, depth=1), decoder)
     images = model.generate(recs[0]["dna_barcode"], n=2, steps=2)
     assert len(images) == 2 and images[0].size == (size, size)
+
+
+def test_prior_checkpoint_keeps_schedule(tmp_path):
+    prior = DiffusionPrior(dim=8, cond_dim=8, width=16, depth=1, timesteps=50, cond_drop=0.3)
+    save_prior(prior, tmp_path / "prior.pt")
+    loaded = load_prior(tmp_path / "prior.pt")
+    assert (loaded.timesteps, loaded.cond_drop) == (50, 0.3)
+    torch.testing.assert_close(loaded.alphas_cumprod, prior.alphas_cumprod)
+
+
+@pytest.mark.parametrize("n_entries,n,n_blocks", [(100, 25, 20), (100, 100, 7), (10, 50, 3)])
+def test_select_blocks_returns_exactly_n_disjoint_entries(n_entries, n, n_blocks):
+    entries = [Entry(f"{i}.jpg", i, 1, 0) for i in range(n_entries)]
+    blocks = data._select_blocks(entries, n, n_blocks)
+    picked = [e.offset for b in blocks for e in b]
+    assert len(picked) == min(n, n_entries) == len(set(picked))
+    assert all(b == list(entries[b[0].offset : b[-1].offset + 1]) for b in blocks)
+
+
+def test_stream_metadata_keeps_last_row_without_newline(monkeypatch):
+    csv_bytes = b"processid,genus\nA1,Aus\nB2,Bus"
+    comp = zlib.compressobj(wbits=-15)
+    raw = comp.compress(csv_bytes) + comp.flush()
+
+    class Info:
+        header_offset, compress_size = 0, len(raw)
+
+    class FakeZip:
+        def __init__(self, url):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def getinfo(self, name):
+            return Info()
+
+    class FakeResponse(FakeZip):
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, size):
+            yield raw
+
+    monkeypatch.setattr(data, "RemoteZip", FakeZip)
+    monkeypatch.setattr(data, "_range", lambda url, start, end: bytes(30))
+    monkeypatch.setattr(data.requests, "get", lambda *a, **kw: FakeResponse(None))
+    rows = data._stream_metadata({"A1", "B2"})
+    assert rows["B2"]["genus"] == "Bus" and rows["A1"]["genus"] == "Aus"

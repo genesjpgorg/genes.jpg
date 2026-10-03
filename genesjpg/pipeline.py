@@ -34,6 +34,8 @@ def save_prior(prior: DiffusionPrior, path: str | Path) -> None:
         "cond_dim": prior.null_cond.numel(),
         "width": prior.width,
         "depth": len(prior.blocks),
+        "timesteps": prior.timesteps,
+        "cond_drop": prior.cond_drop,
     }
     torch.save({"config": cfg, "state_dict": prior.state_dict()}, path)
 
