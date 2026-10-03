@@ -325,3 +325,12 @@ measured in [docs/survey_mammals.md](docs/survey_mammals.md).
 ## License
 
 Code license to be decided. Data licences are per source/image; see Licensing above.
+
+## Longevity training with random genome chunks
+
+Use `python -m longevity.chunks` to prepare 1,000 fixed samples per genome, each
+containing 1022 DNA BPE tokens + CLS/SEP (1024 total) and a repeated longevity label in H5.
+Then pass the H5 directory to `python -m longevity.train --data ...` to reuse the
+ModernGENA/ModernBERT regression trainer. Use `--comparison configs/longevity-anage100-comparison.json`
+for the frozen CDS cohort, splits and 18-epoch training settings. See
+[comparison protocol, commands and H5 format](docs/longevity-chunks.md).
