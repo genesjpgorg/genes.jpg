@@ -108,3 +108,51 @@ uv run --extra model python -m longevity.comparison \
 The original gene preparation/training commands remain supported. The existing
 `longevity.report` publication report still expects gene-specific metadata;
 compare the shared species-level metrics in `metrics.jsonl` for the chunk variant.
+
+## Cluster execution and automatic report
+
+For the RTX PRO 6000 Blackwell run, preparation uses 16 independent genome workers
+(`--workers 16`); sampling remains deterministic per assembly. The completed source
+dataset now has newer NCBI taxonomy, so first make a snapshot that verifies the
+selected FASTAs and labels and preserves the historical CDS taxonomy:
+
+```bash
+python -m longevity.snapshot \
+  --dataset /shared/genes.jpg/datasets/anage-longevity \
+  --comparison configs/longevity-anage100-comparison.json \
+  --out /shared/genes.jpg/datasets/longevity-anage100-frozen --threads 16
+python -m longevity.chunks \
+  --dataset /shared/genes.jpg/datasets/longevity-anage100-frozen \
+  --comparison configs/longevity-anage100-comparison.json \
+  --out /shared/genes.jpg/datasets/longevity-anage100-chunks --workers 16
+python -m longevity.audit_chunks \
+  --data /shared/genes.jpg/datasets/longevity-anage100-chunks \
+  --comparison configs/longevity-anage100-comparison.json --out input_audit.json
+```
+
+Use a separate training environment with Python development headers installed,
+Torch 2.12.0, torchvision 0.27.0, Transformers 5.18.0 and kernels 0.17.2. The older
+Transformers 4.x ModernBERT implementation does not dispatch the historical Hub
+FlashAttention backend correctly; Torch 2.14 has no matching published kernel build.
+The full tested environment is captured with `uv pip freeze --exclude-editable`.
+This environment intentionally differs from the general `model` extra's `<5` pin.
+Keep the preparation environment separate while its workers are active.
+
+Training starts only after all 98 shards pass the input audit. Run it in a detached
+session, with a fresh output directory, and preserve logs and checkpoints on the
+shared disk. After successful completion, generate the report:
+
+```bash
+python -m longevity.compare_report \
+  --run /shared/genes.jpg/runs/longevity-anage100-chunks \
+  --reference /shared/genes.jpg/runs/longevity-anage100 \
+  --job /shared/genes.jpg/runs/longevity-anage100-chunks-job \
+  --out /shared/genes.jpg/runs/longevity-anage100-chunks-job/report
+```
+
+`scripts/publish_chunk_report.py` waits for the cluster pipeline's successful exit
+marker, copies the completed report into an isolated Git worktree, commits/pushes
+it, and creates a GitHub PR. It runs on the already authenticated workstation, so
+GitHub credentials do not need to be copied to the cluster. The publisher records
+its state and eventual PR URL in `publisher-status.json`; failed/incomplete runs
+are never published as completed experiments.

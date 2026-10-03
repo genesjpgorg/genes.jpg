@@ -6,6 +6,9 @@ import argparse
 import gzip
 import hashlib
 import json
+import multiprocessing
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import h5py
@@ -164,12 +167,21 @@ def main():
     ap.add_argument("--block-bases", type=int, default=1_000_000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--workers", type=int, default=1, help="parallel genome tokenization processes")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--comparison", type=Path, help="Frozen CDS comparison specification")
     args = ap.parse_args()
     if args.chunks_per_genome < 1 or args.block_bases < CHUNK_TOKENS:
         ap.error("chunks-per-genome must be positive; block-bases must be >= 1024")
-    genomes, longevity, species = load_tables(args.dataset, args.anage_table, args.threads)
+    if args.workers < 1:
+        ap.error("--workers must be positive")
+    spec, wanted = None, None
+    if args.comparison:
+        from longevity.comparison import read_spec
+
+        spec = read_spec(args.comparison)
+        wanted = {r["assembly_accession"] for r in spec["cohort"]}
+    genomes, longevity, species = load_tables(args.dataset, args.anage_table, args.threads, wanted)
     labels = longevity[longevity.is_primary][["ncbi_taxid", "max_longevity_yrs"]]
     table = (
         genomes[["assembly_accession", "species_taxid", "path"]]
@@ -178,11 +190,9 @@ def main():
     )
     if len(table) != len(genomes) or table.empty:
         raise ValueError("Every genome must have a primary longevity label and species metadata")
-    spec = None
-    if args.comparison:
-        from longevity.comparison import read_spec, validate_cohort
+    if spec:
+        from longevity.comparison import validate_cohort
 
-        spec = read_spec(args.comparison)
         if args.seed != spec["settings"]["seed"]:
             ap.error("chunk preparation seed must match the comparison specification")
         wanted = {r["assembly_accession"] for r in spec["cohort"]}
@@ -194,33 +204,54 @@ def main():
         extras = {p.stem for p in args.out.glob("*.h5")} - wanted
         if extras:
             raise ValueError(f"Output directory contains non-comparison genomes: {sorted(extras)}")
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER)
-    for record in table.sort_values("assembly_accession").to_dict("records"):
-        acc = record["assembly_accession"]
-        out = args.out / f"{acc}.h5"
+    records = table.sort_values("assembly_accession").to_dict("records")
+    for record in records:
+        out = args.out / f"{record['assembly_accession']}.h5"
         if out.exists() and not args.force:
             raise FileExistsError(f"{out}: use --force to replace existing chunks")
-        metadata = {
-            k: record[k]
-            for k in (
-                "assembly_accession",
-                "ncbi_taxid",
-                "scientific_name",
-                "class",
-                "order",
-                "family",
-                "max_longevity_yrs",
-            )
-        }
-        seed = int.from_bytes(hashlib.sha256(f"{args.seed}:{acc}".encode()).digest()[:8], "little")
-        if spec:
-            metadata["comparison_sha256"] = spec["sha256"]
-        write_genome(
-            out, record["path"], metadata, tokenizer, args.chunks_per_genome, seed, args.block_bases
+    if args.workers == 1:
+        init_worker()
+        for record in records:
+            log(prepare_one(record, args, spec))
+    else:
+        with ProcessPoolExecutor(
+            args.workers, mp_context=multiprocessing.get_context("spawn"), initializer=init_worker
+        ) as pool:
+            futures = [pool.submit(prepare_one, record, args, spec) for record in records]
+            for i, future in enumerate(as_completed(futures), 1):
+                log(f"[{i}/{len(records)}] " + future.result())
+
+
+def init_worker():
+    global _tokenizer
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    from transformers import AutoTokenizer
+
+    _tokenizer = AutoTokenizer.from_pretrained(TOKENIZER)
+
+
+def prepare_one(record, args, spec):
+    acc = record["assembly_accession"]
+    out = args.out / f"{acc}.h5"
+    metadata = {
+        k: record[k]
+        for k in (
+            "assembly_accession",
+            "ncbi_taxid",
+            "scientific_name",
+            "class",
+            "order",
+            "family",
+            "max_longevity_yrs",
         )
-        log(f"{acc}: wrote {args.chunks_per_genome} x {CHUNK_TOKENS} tokens to {out}")
+    }
+    seed = int.from_bytes(hashlib.sha256(f"{args.seed}:{acc}".encode()).digest()[:8], "little")
+    if spec:
+        metadata["comparison_sha256"] = spec["sha256"]
+    write_genome(
+        out, record["path"], metadata, _tokenizer, args.chunks_per_genome, seed, args.block_bases
+    )
+    return f"{acc}: wrote {args.chunks_per_genome} x {CHUNK_TOKENS} tokens to {out}"
 
 
 if __name__ == "__main__":

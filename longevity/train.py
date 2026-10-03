@@ -396,6 +396,8 @@ def _main(argv, stack) -> None:
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
                 pred = fwd(inp, mask)
             loss = nn.functional.mse_loss(pred.float(), y)
+            if not torch.isfinite(loss).item():
+                raise FloatingPointError(f"Nonfinite loss at step {step + 1}; aborting run")
             opt.zero_grad(set_to_none=True)
             loss.backward()
             gnorm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
