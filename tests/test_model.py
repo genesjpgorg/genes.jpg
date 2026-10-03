@@ -337,3 +337,57 @@ def test_kmer_profile_is_strand_independent():
     rc = s.translate(str.maketrans("ACGTN", "TGCAN"))[::-1]
     assert np.allclose(kmer_profile([s], k=4), kmer_profile([rc], k=4))
     assert abs(kmer_profile([s], k=4).sum() - 1) < 1e-9
+
+
+def test_prepare_pairs_genomes_by_accession_not_taxid(tmp_path):
+    """A genome whose taxid is a subspecies must still reach its species' images (via the pair's accession)."""
+    import csv
+
+    from genesjpg.genomes import prepare_records
+
+    fa, report, _ = _fake_assembly(tmp_path, 0)
+    ds = tmp_path / "ds"
+    (ds / "images/10042").mkdir(parents=True)
+
+    def write(name, rows):
+        with open(ds / name, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+
+    write(
+        "genomes.csv",
+        [
+            {
+                "assembly_accession": "GCF_1.1",
+                "ncbi_taxid": "230844",
+                "species_taxid": "10042",
+                "sequence_file": str(fa),
+                "extra_files": str(report),
+            }
+        ],
+    )
+    sp = {
+        "ncbi_taxid": "10042",
+        "scientific_name": "Peromyscus maniculatus",
+        "kingdom": "Metazoa",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "order": "Rodentia",
+        "family": "Cricetidae",
+        "genus": "Peromyscus",
+        "lineage_taxids": "1|7711|40674|10042",
+    }
+    write("species.csv", [sp])
+    write("images.csv", [{"image_id": f"i{k}", "file": f"images/10042/i{k}.jpg"} for k in range(5)])
+    write(
+        "pairs.csv",
+        [
+            {"image_id": f"i{k}", "assembly_accession": "GCF_1.1", "ncbi_taxid": "10042"}
+            for k in range(5)
+        ],
+    )
+    path = prepare_records(ds, tmp_path / "run", genome_cache=tmp_path / "packed")
+    with open(path, newline="") as f:
+        recs = list(csv.DictReader(f))
+    assert len(recs) == 5 and all(r["genome"].endswith("GCF_1.1") for r in recs)

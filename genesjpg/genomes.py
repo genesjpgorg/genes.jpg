@@ -201,13 +201,16 @@ def _rows(path: Path) -> list[dict]:
 
 
 def pack_dataset_genomes(dataset: Path, cache: Path, workers: int = 8) -> dict[str, dict]:
-    """Pack every genome of a dataset into ``cache/<accession>`` (in parallel); taxid -> record DNA fields."""
+    """Pack every genome of a dataset into ``cache/<accession>`` (in parallel); accession -> record DNA fields.
+
+    Keyed by assembly accession, not taxid: a genome's ``ncbi_taxid`` can be a subspecies (e.g. Peromyscus
+    maniculatus bairdii) while species and pairs use the species taxid."""
     from concurrent.futures import ProcessPoolExecutor
 
     jobs = {}
     for g in _rows(dataset / "genomes.csv"):
         report = next(p for p in g["extra_files"].split("|") if p.endswith("_assembly_report.txt"))
-        jobs[g["ncbi_taxid"]] = (
+        jobs[g["assembly_accession"]] = (
             dataset / g["sequence_file"],
             dataset / report,
             cache / g["assembly_accession"],
@@ -236,7 +239,7 @@ def prepare_records(
     dataset, out = Path(dataset).resolve(), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     cache = Path(genome_cache or dataset.parent / "_packed_genomes")
-    by_taxid = pack_dataset_genomes(dataset, cache, workers=workers)
+    by_accession = pack_dataset_genomes(dataset, cache, workers=workers)
     species = {s["ncbi_taxid"]: s for s in _rows(dataset / "species.csv")}
     images = {i["image_id"]: i for i in _rows(dataset / "images.csv")}
     pairs = _rows(dataset / "pairs.csv")
@@ -248,12 +251,13 @@ def prepare_records(
     unseen = {str(t) for t in unseen}
     records = []
     for taxid, ps in sorted(by_species.items()):
-        s, b = species[taxid], by_taxid[taxid]
+        s = species[taxid]
         kingdom, phylum, cls = bioclip_ranks(s)
         rng.shuffle(ps)
         n_val = round(len(ps) * val_frac)
         for k, p in enumerate(ps):
             split = "val_unseen" if taxid in unseen else ("val" if k < n_val else "train")
+            b = by_accession[p["assembly_accession"]]
             records.append(
                 {
                     "processid": p["image_id"],
