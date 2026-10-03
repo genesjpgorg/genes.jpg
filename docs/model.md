@@ -46,6 +46,21 @@ GPU, which requires a payment method on the Modal workspace.
 specimen's photo), and species/genus top-1 (nearest photo has the right label). The prior also reports mean cosine
 between sampled and true image embeddings. Checkpoints and `*_metrics.json` go to `<data>/checkpoints/`.
 
+## First CPU run (BIOSCAN-5M subset)
+
+20k train / 3k `val` (seen species) / 3k `val_unseen` (species absent from train), CPU only, `train-align --epochs 5`
+(~19 min/epoch on 8 cores) then `train-prior --epochs 50`. Retrieval is among the 3k photos of the same split.
+
+| metric | val | val_unseen |
+|---|---|---|
+| align: specimen top-1 / top-5 | 0.114 / 0.341 | 0.013 / 0.050 |
+| align: species top-1 | 0.612 | 0.295 |
+| align: genus top-1 | 0.735 | 0.442 |
+| prior: cos(sampled, true image emb) | 0.717 | 0.612 |
+| prior: species / genus top-1 of sample | 0.575 / 0.725 | 0.283 / 0.455 |
+
+Alignment was still improving at epoch 5 on `val`; `val_unseen` plateaued after epoch 1–3.
+
 ## Not yet done
 
 - Decoder has not been trained (no GPU). Planned: train on all BIOSCAN-5M images, then add iNaturalist/TreeOfLife-10M.
