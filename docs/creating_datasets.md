@@ -213,9 +213,14 @@ stricter policy can be applied later by filtering `images.license`; `large` keep
 ≤1024 px (≈0.4 MB) instead of multi-MB originals.
 
 What this dataset is **not**: no train/val/test split is assigned (`species.split` is empty —
-the intended protocol is species-held-out), label noise has not been quantified (iNaturalist
-mammal photos can show tracks, scat or remains), and five species cannot support model
-training; it exists to prove the pipeline end to end.
+the intended protocol is species-held-out), and five species cannot support model training;
+it exists to prove the pipeline end to end.
+
+**Audit.** Two independent audits ([audits/tol200m-mammals-smoke.md](audits/tol200m-mammals-smoke.md))
+re-derived every genome checksum, image hash, catalog/provenance field, taxid and count from
+primary sources and found no defects. Looking at the photos themselves showed 83–92% live
+animals for four species but **only 17% for the beaver** — iNaturalist documents beavers
+mostly by chewed wood — so a content filter is required before a training-scale build.
 
 ## 6. Scaling up
 

@@ -71,6 +71,10 @@ chromosome-level RefSeq reference genome and 50 citizen-science photos from Tree
 carries its own license (187 CC BY-NC 4.0, 46 CC BY 4.0, 17 other CC). Images are
 individually licensed and mostly non-commercial; see the licensing notes in
 [docs/creating_datasets.md](docs/creating_datasets.md#5-the-generated-dataset-tol200m-mammals-smoke).
+Independent audits ([docs/audits/](docs/audits/tol200m-mammals-smoke.md)) verified every file
+and field against NCBI and the source catalog; a visual check found 83–92% of photos show the
+live animal, except the beaver (17% — mostly chewed wood), so a content filter is the next
+pipeline step.
 
 Why mammals and TreeOfLife-200M: RefSeq has reference assemblies for only ~270 mammal
 species, and TreeOfLife-200M covers 250 of them with 2.25 M images — the largest overlap of
