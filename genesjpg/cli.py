@@ -139,8 +139,10 @@ def cmd_train_align(a):
         seed=a.seed,
         sample_dna=window_sampler(train, seed=a.seed) if genome else None,
     )
-    save_align(model.cpu(), ckpt / "align.pt")
-    metrics = eval_fn(model)
+    save_align(
+        model.cpu(), ckpt / "align.pt"
+    )  # save first, so a failing final eval cannot lose the run
+    metrics = eval_fn(model.to(a.device))  # back on the training device: on CPU this takes hours
     (ckpt / "align_metrics.json").write_text(json.dumps(metrics, indent=2))
     print(json.dumps(metrics, indent=2))
 
