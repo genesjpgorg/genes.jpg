@@ -1,16 +1,10 @@
 """Adapter from a genes.jpg genome <-> image dataset (src/datasets) to the model's records.csv.
 
-Two DNA inputs, chosen by ``prepare --dna``:
-
-- ``genome`` (default): the species' nuclear reference genome. Each assembly is packed once into a flat
-  byte array (``PackedGenome``); training draws a fresh random window per image per step, and a genome is
-  embedded as the mean of ``K`` fixed windows (``embed_genome``). A window is ``WINDOW_BP`` bases, which
-  ModernGENA's tokenizer truncates to its 1024-token context (~6.4 bp/token on mammal DNA).
-- ``barcode``: the ~650 bp COI Folmer region (between the LCO1490 / HCO2198 primer sites), from NCBI's
-  annotation of the species' mitochondrial genome (the one named in the assembly report, else the RefSeq one);
-  unannotated mitochondria are searched for the primer sites directly.
-
-Either way every image of a species gets that species' DNA (species-level pairing).
+The DNA input is the species' nuclear reference genome. Each assembly is packed once into a flat byte array
+(``PackedGenome``); training draws a fresh random window per image per step, and a genome is embedded as the mean
+of ``K`` fixed windows (``embed_genome``). A window is ``WINDOW_BP`` bases, which ModernGENA's tokenizer truncates
+to its 1024-token context (~6.4 bp/token on mammal DNA). Every image of a species gets that species' genome
+(species-level pairing).
 """
 
 from __future__ import annotations
@@ -20,26 +14,19 @@ import csv
 import gzip
 import json
 import random
-import time
 from pathlib import Path
 
 import numpy as np
-import requests
 import torch
 import torch.nn.functional as F
 
 from .data import FIELDS
 
-EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
-LCO1490 = "GGTCAACAAATCATAAAGATATTGG"
-HCO2198 = "TAAACTTCAGGGTGACCAAAAAATCA"
-COX1_NAMES = {"COX1", "COI", "CO1", "COXI", "MT-CO1"}
 RECORD_FIELDS = [*FIELDS, "genome", "kingdom", "phylum", "class", "ncbi_taxid"]
 # > 1024 tokens of DNA even in repeat-rich sequence; the tokenizer truncates the rest
 WINDOW_BP = 10_000
 MAX_N_FRAC = 0.01  # reject windows with more unknown bases than this
 EVAL_WINDOWS = 32  # windows averaged into one genome embedding
-_COMP = str.maketrans("ACGTN", "TGCAN")
 _NORM = bytes(  # upper-case ACGT (soft-masked repeats included); anything else -> N
     b if chr(b) in "ACGT" else (b - 32 if chr(b) in "acgt" else ord("N")) for b in range(256)
 )
@@ -208,132 +195,9 @@ def bioclip_ranks(species: dict) -> tuple[str, str, str]:
     return kingdom, phylum, cls
 
 
-def _revcomp(s: str) -> str:
-    return s.translate(_COMP)[::-1]
-
-
-def _eutils(endpoint: str, **params) -> requests.Response:
-    """GET an E-utilities endpoint, kept under NCBI's 3 requests/s, with retries."""
-    for attempt in range(4):
-        time.sleep(0.4)
-        r = requests.get(EUTILS + endpoint, params=params, timeout=60)
-        if r.status_code == 200:
-            return r
-        time.sleep(2**attempt)
-    r.raise_for_status()
-    return r
-
-
-def mito_accession(report: Path) -> str | None:
-    """Accession of the mitochondrion listed in an NCBI assembly report (RefSeq preferred), or None."""
-    for line in report.read_text().splitlines():
-        if line.startswith("#"):
-            continue
-        f = line.split("\t")
-        if len(f) > 6 and f[3] == "Mitochondrion":
-            return f[6] if f[6] != "na" else (f[4] if f[4] != "na" else None)
-    return None
-
-
-def refseq_mito_accession(taxid: int) -> str | None:
-    """Accession of the RefSeq complete mitochondrial genome of a species taxid, or None."""
-    term = f"txid{taxid}[Organism:noexp] AND mitochondrion[filter] AND refseq[filter]"
-    ids = _eutils("esearch.fcgi", db="nuccore", term=term, retmode="json").json()
-    ids = ids["esearchresult"]["idlist"]
-    if not ids:
-        return None
-    summ = _eutils("esummary.fcgi", db="nuccore", id=ids[0], retmode="json").json()
-    return summ["result"][ids[0]]["accessionversion"]
-
-
-def fetch_cox1(accession: str) -> str | None:
-    """COX1 coding sequence of an annotated mitochondrial genome record, or None if not annotated."""
-    fasta = _eutils("efetch.fcgi", db="nuccore", id=accession, rettype="fasta_cds_na").text
-    for block in fasta.split(">")[1:]:
-        header, *seq = block.splitlines()
-        gene = header.split("[gene=")[1].split("]")[0] if "[gene=" in header else ""
-        if gene.upper() in COX1_NAMES or "cytochrome c oxidase subunit I]" in header:
-            return "".join(seq).upper()
-    return None
-
-
-def fetch_sequence(accession: str) -> str:
-    """Nucleotide sequence of a record."""
-    fasta = _eutils("efetch.fcgi", db="nuccore", id=accession, rettype="fasta").text
-    return "".join(fasta.splitlines()[1:]).upper()
-
-
-def _best_hit(seq: str, primer: str) -> tuple[int, int]:
-    """(position, mismatches) of the best ungapped match of primer in seq."""
-    n = len(primer)
-    return min(
-        ((i, sum(a != b for a, b in zip(seq[i : i + n], primer))) for i in range(len(seq) - n + 1)),
-        key=lambda x: x[1],
-    )
-
-
-def folmer_barcode(seq: str, max_mismatches: int = 8, length: tuple[int, int] = (600, 700)) -> str:
-    """The Folmer barcode region (between the LCO1490 and HCO2198 sites, primers excluded) of a COX1 or
-    whole mitochondrial sequence; both strands are searched."""
-    best = None
-    for strand in (seq, _revcomp(seq)):
-        fwd, mf = _best_hit(strand, LCO1490)
-        rev, mr = _best_hit(strand, _revcomp(HCO2198))
-        n = rev - fwd - len(LCO1490)
-        ok = mf <= max_mismatches and mr <= max_mismatches and length[0] <= n <= length[1]
-        if ok and (best is None or mf + mr < best[0]):
-            best = (mf + mr, strand[fwd + len(LCO1490) : rev])
-    if best is None:
-        raise ValueError("Folmer primer sites not found")
-    return best[1]
-
-
-def _check_coding(barcode: str) -> None:
-    """The barcode must translate (vertebrate mitochondrial code) without stops in one of its frames."""
-    from Bio.Seq import Seq
-
-    for frame in range(3):
-        sub = barcode[frame : frame + (len(barcode) - frame) // 3 * 3]
-        if "*" not in str(Seq(sub).translate(table=2)):
-            return
-    raise ValueError("barcode has stop codons in every frame")
-
-
 def _rows(path: Path) -> list[dict]:
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
-
-
-def species_barcodes(dataset: Path) -> list[dict]:
-    """One COI barcode per genome of the dataset, with its provenance."""
-    out = []
-    for g in _rows(dataset / "genomes.csv"):
-        extras = g["extra_files"].split("|")
-        report = next(dataset / p for p in extras if p.endswith("_assembly_report.txt"))
-        acc, source = mito_accession(report), "assembly_report"
-        if acc is None:
-            acc, source = refseq_mito_accession(int(g["species_taxid"])), "refseq_search"
-        if acc is None:
-            raise ValueError(f"{g['organism_name']}: no mitochondrial genome found")
-        cox1 = fetch_cox1(acc)
-        if cox1 is None:  # unannotated mitochondrion (e.g. a GenBank assembly molecule)
-            source += "+primer_search"
-        barcode = folmer_barcode(cox1 or fetch_sequence(acc))
-        _check_coding(barcode)
-        out.append(
-            {
-                "ncbi_taxid": g["ncbi_taxid"],
-                "assembly_accession": g["assembly_accession"],
-                "organism_name": g["organism_name"],
-                "mito_accession": acc,
-                "mito_source": source,
-                "cox1_length": len(cox1) if cox1 else "",
-                "barcode_length": len(barcode),
-                "dna_barcode": barcode,
-            }
-        )
-        print(f"{g['organism_name']}: {acc} ({source}) -> barcode {len(barcode)} bp")
-    return out
 
 
 def pack_dataset_genomes(dataset: Path, cache: Path, workers: int = 8) -> dict[str, dict]:
@@ -359,34 +223,20 @@ def prepare_records(
     unseen: list[int] = (),
     val_frac: float = 0.2,
     seed: int = 0,
-    dna: str = "genome",
     genome_cache: str | Path | None = None,
 ) -> Path:
     """Write <out_dir>/records.csv (model format) from a genome <-> image dataset.
 
-    ``dna="genome"``: each assembly is packed into ``genome_cache`` (default ``<dataset>/../_packed_genomes``,
-    shared across runs) and records point to it in ``genome``. ``dna="barcode"``: records carry the species'
-    COI barcode in ``dna_barcode`` (provenance in barcodes.csv).
+    Each assembly is packed into ``genome_cache`` (default ``<dataset>/../_packed_genomes``, shared across
+    runs) and records point to it in ``genome``.
     Splits: species in ``unseen`` -> val_unseen; of the rest, ``val_frac`` of each species' images -> val,
     the remainder -> train. ``processid`` is the dataset's image_id; image paths are absolute.
     """
     dataset, out = Path(dataset).resolve(), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    if dna == "genome":
-        by_taxid = pack_dataset_genomes(
-            dataset, Path(genome_cache or dataset.parent / "_packed_genomes")
-        )
-    elif dna == "barcode":
-        barcodes = species_barcodes(dataset)
-        with open(out / "barcodes.csv", "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=list(barcodes[0]))
-            w.writeheader()
-            w.writerows(barcodes)
-        by_taxid = {
-            b["ncbi_taxid"]: {"dna_barcode": b["dna_barcode"], "genome": ""} for b in barcodes
-        }
-    else:
-        raise ValueError(f"dna must be 'genome' or 'barcode', not {dna!r}")
+    by_taxid = pack_dataset_genomes(
+        dataset, Path(genome_cache or dataset.parent / "_packed_genomes")
+    )
     species = {s["ncbi_taxid"]: s for s in _rows(dataset / "species.csv")}
     images = {i["image_id"]: i for i in _rows(dataset / "images.csv")}
     pairs = _rows(dataset / "pairs.csv")
@@ -433,7 +283,6 @@ def prepare_records(
         json.dumps(
             {
                 "dataset": str(dataset),
-                "dna": dna,
                 "unseen": sorted(unseen),
                 "val_frac": val_frac,
                 "seed": seed,

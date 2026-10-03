@@ -5,18 +5,17 @@
 Datasets and models for **genome ↔ organism image** learning: given DNA, predict what the organism looks like; given
 a photo, retrieve the matching genome. The repository has two parts:
 
-- **Model** (`genesjpg/`): a DNA → image model. Its DNA input is either random 1024-token windows of a species'
-  nuclear reference genome (from the dataset pipeline below) or a DNA barcode (the ~650 bp mitochondrial COI region
-  used to identify animal species, e.g. insects from [BIOSCAN-5M](https://huggingface.co/datasets/bioscan-ml/BIOSCAN-5M),
-  where every specimen has both a barcode and a photo).
+- **Model** (`genesjpg/`): a DNA → image model. Its DNA input is random 1024-token windows of a species' nuclear
+  reference genome, from the dataset pipeline below. (It can also read DNA barcodes, the ~650 bp mitochondrial COI
+  region, for insects from [BIOSCAN-5M](https://huggingface.co/datasets/bioscan-ml/BIOSCAN-5M), where every
+  specimen has a barcode and a photo but no genome.)
 - **Dataset pipeline** (`src/datasets/`, CLI `genes-datasets`): builds validated species-level datasets that pair
   NCBI RefSeq reference genomes with licensed organism photos; the first is a 5-species mammal smoke dataset
   (`tol200m-mammals-smoke`).
 
 Status (2026-10-03): the dataset pipeline is in place and `tol200m-mammals-smoke` (5 RefSeq genomes, 250 images,
 250 pairs) has been built, validated and independently audited. All four model steps have run end to end on it on one
-GPU, with ModernGENA and Stable Diffusion 1.5, from nuclear-genome windows and, for comparison, from COI barcodes
-(`python -m genesjpg prepare`). The four training species are recognised and rendered; a held-out fifth species is not
+GPU, with ModernGENA and Stable Diffusion 1.5, from nuclear-genome windows (`python -m genesjpg prepare`). The four training species are recognised and rendered; a held-out fifth species is not
 (4 species are far too few to generalise). The model has not yet been trained at scale (no BIOSCAN-5M run, no
 multi-species mammal run). Details and numbers: [docs/model.md](docs/model.md#genome-datasets).
 
@@ -34,7 +33,6 @@ review: [docs/architectures.md](docs/architectures.md)):
                  ┌──────────────────────── trained on paired DNA + photo ────────────────────────┐
 DNA input ────► [1] DNA encoder ──► [2] aligned DNA embedding ──► [3] diffusion prior ──► BioCLIP image embedding
 genome windows   ModernGENA            (512-d, BioCLIP space)        samples one plausible           │
-or COI barcode
                                               │                      image embedding                 │
                                               │                                                      ▼
                                               └──► retrieval baseline:                 [4] decoder: Stable Diffusion
@@ -47,8 +45,8 @@ or COI barcode
 
 | Step | What it does | Model | Trained? | Code |
 |---|---|---|---|---|
-| 1. DNA encoder | Turns DNA into a vector: tokenise, run the transformer, mean-pool, project to 512-d with an MLP. A genome is too long for one pass: training sees a fresh random window per image per step, and a genome is embedded as the mean over 32 fixed windows | [ModernGENA](https://huggingface.co/AIRI-Institute/moderngena-base), 22-layer ModernBERT DNA LM, 135M params, 32k BPE tokens, 1024-token context (~6.3 kb of mammal DNA; ~107 tokens per barcode) | fine-tuned in step 2 | `genesjpg/encoders.py` `DNAEncoder`, `genesjpg/genomes.py` |
-| 2. Alignment | Pulls each DNA vector next to the frozen [BioCLIP](https://huggingface.co/imageomics/bioclip) embedding of the same specimen's photo, plus (weight 0.5) the embedding of its taxonomy caption, e.g. *"a photo of Animalia Chordata Mammalia Carnivora Canidae Vulpes vulpes"*. Label-aware InfoNCE: specimens of the same species in a batch are all positives | DNA encoder + learned temperature; BioCLIP frozen | yes (GPU; CPU feasible for barcodes) | `genesjpg/align.py` |
+| 1. DNA encoder | Turns DNA into a vector: tokenise, run the transformer, mean-pool, project to 512-d with an MLP. A genome is too long for one pass: training sees a fresh random window per image per step, and a genome is embedded as the mean over 32 fixed windows | [ModernGENA](https://huggingface.co/AIRI-Institute/moderngena-base), 22-layer ModernBERT DNA LM, 135M params, 32k BPE tokens, 1024-token context (~6.3 kb of mammal DNA) | fine-tuned in step 2 | `genesjpg/encoders.py` `DNAEncoder`, `genesjpg/genomes.py` |
+| 2. Alignment | Pulls each DNA vector next to the frozen [BioCLIP](https://huggingface.co/imageomics/bioclip) embedding of the same specimen's photo, plus (weight 0.5) the embedding of its taxonomy caption, e.g. *"a photo of Animalia Chordata Mammalia Carnivora Canidae Vulpes vulpes"*. Label-aware InfoNCE: specimens of the same species in a batch are all positives | DNA encoder + learned temperature; BioCLIP frozen | yes (GPU) | `genesjpg/align.py` |
 | 3. Prior | One DNA input fits many photos (pose, sex, life stage), so instead of regressing an average it *samples* a BioCLIP image embedding given the DNA embedding | MLP diffusion model, x0-prediction, cosine schedule, classifier-free guidance, DDIM sampling | yes, CPU or GPU | `genesjpg/prior.py` `DiffusionPrior` |
 | 4. Decoder | Renders an image from a BioCLIP image embedding, which is projected to 8 cross-attention tokens that replace the text prompt (IP-Adapter style) | Stable Diffusion 1.5 (frozen VAE + UNet) + `EmbeddingProjector`; optional UNet fine-tune | needs a GPU | `genesjpg/decoder.py` `EmbeddingDecoder` |
 
@@ -74,7 +72,7 @@ or COI barcode
 genesjpg/                   DNA -> image model
   data.py                   BIOSCAN-5M subset download (HTTP range requests into the remote zips), records, captions
   genomes.py                built dataset -> records.csv (`prepare`): nuclear-genome packing, random/fixed windows,
-                            genome embeddings; or COI barcodes from NCBI mitochondrial annotations
+                            genome embeddings, BioCLIP caption names
   encoders.py               step 1: ModernGENA DNAEncoder + HFTokenizer; frozen BioCLIP image/text towers
   align.py                  step 2: contrastive loss, AlignModel, train_align, retrieval/pooled metrics
   prior.py                  step 3: DiffusionPrior, train_prior
@@ -143,7 +141,7 @@ Every command reads and writes under `--data` (`records.csv`, `embeddings.pt`, `
 to `cuda` when available. First create `records.csv`, from a built dataset or from BIOSCAN-5M:
 
 ```bash
-# a genes.jpg dataset: nuclear-genome windows (default) or --dna barcode; --unseen holds species out as val_unseen
+# a genes.jpg dataset (nuclear-genome windows); --unseen holds species out as val_unseen
 python -m genesjpg --data RUN prepare --dataset data/datasets/tol200m-mammals-smoke --unseen 9361
 # or a paired BIOSCAN-5M subset (barcodes + insect photos)
 python -m genesjpg --data RUN download --n-train 20000 --n-eval 3000
@@ -173,7 +171,7 @@ from genesjpg.genomes import PackedGenome
 model = GenomeToImage.from_checkpoints(
     "RUN/checkpoints", gallery=(image_embeddings, records), device="cuda"
 )
-dna = PackedGenome("data/datasets/_packed_genomes/GCF_048418805.1")  # or a barcode string
+dna = PackedGenome("data/datasets/_packed_genomes/GCF_048418805.1")
 model.retrieve(dna, k=5)  # [(record, cosine similarity), ...]
 images = model.generate(dna, n=4)  # list of PIL images (needs decoder.pt)
 ```
