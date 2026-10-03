@@ -1,44 +1,15 @@
-"""Step 1 (DNA encoder: ModernGENA or BarcodeBERT) and the frozen BioCLIP image/text towers."""
+"""Step 1 (ModernGENA DNA encoder) and the frozen BioCLIP image/text towers."""
 
 from __future__ import annotations
 
-from itertools import product
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 
-BARCODEBERT = "bioscan-ml/BarcodeBERT"
 MODERNGENA = "AIRI-Institute/moderngena-base"
-ENCODERS = {"moderngena": MODERNGENA, "barcodebert": BARCODEBERT}
 BIOCLIP = "hf-hub:imageomics/bioclip"
-
-
-class KmerTokenizer:
-    """Non-overlapping k-mer tokenizer using BarcodeBERT's vocabulary.
-
-    ids: 0 = [MASK], 1 = [UNK] (also used for padding, masked out), then all ACGT k-mers.
-    """
-
-    def __init__(self, k: int = 4, stride: int = 4, max_len: int = 660):
-        self.k, self.stride, self.max_len = k, stride, max_len
-        self.vocab = {"".join(p): i + 2 for i, p in enumerate(product("ACGT", repeat=k))}
-        self.unk_id = 1
-
-    def encode(self, seq: str) -> list[int]:
-        seq = seq.strip().upper()[: self.max_len]
-        return [self.vocab.get(seq[i : i + self.k], self.unk_id) for i in range(0, len(seq) - self.k + 1, self.stride)]
-
-    def __call__(self, seqs: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
-        ids = [self.encode(s) or [self.unk_id] for s in seqs]
-        length = max(len(i) for i in ids)
-        input_ids = torch.full((len(ids), length), self.unk_id, dtype=torch.long)
-        mask = torch.zeros((len(ids), length), dtype=torch.long)
-        for row, seq_ids in enumerate(ids):
-            input_ids[row, : len(seq_ids)] = torch.tensor(seq_ids)
-            mask[row, : len(seq_ids)] = 1
-        return input_ids, mask
 
 
 class HFTokenizer:
@@ -61,45 +32,28 @@ class HFTokenizer:
         return enc["input_ids"], enc["attention_mask"]
 
 
-def _layers(backbone: nn.Module):
-    return backbone.layers if hasattr(backbone, "layers") else backbone.encoder.layer
-
-
-def load_backbone(name: str) -> tuple[nn.Module, object]:
-    """Pretrained DNA backbone + matching tokenizer for a key of ``ENCODERS``."""
-    if name == "barcodebert":
-        from transformers import BertModel
-
-        return BertModel.from_pretrained(BARCODEBERT, add_pooling_layer=False), KmerTokenizer()
-    if name == "moderngena":
-        from transformers import AutoModel
-
-        return AutoModel.from_pretrained(MODERNGENA), HFTokenizer(MODERNGENA)
-    raise ValueError(f"unknown encoder {name!r}; choose from {sorted(ENCODERS)}")
-
-
 class DNAEncoder(nn.Module):
-    """Pretrained DNA LM (ModernGENA by default) + mean pooling + MLP head onto BioCLIP's unit sphere."""
+    """ModernGENA + mean pooling + MLP head onto BioCLIP's unit sphere."""
 
     def __init__(
         self,
-        name: str = "moderngena",
         backbone: nn.Module | None = None,
-        tokenizer=None,
+        tokenizer: HFTokenizer | None = None,
         embed_dim: int = 512,
         freeze_layers: int = 0,
     ):
         super().__init__()
         if backbone is None:
-            backbone, tokenizer = load_backbone(name)
-        self.name = name
+            from transformers import AutoModel
+
+            backbone = AutoModel.from_pretrained(MODERNGENA)
         self.backbone = backbone
-        self.tokenizer = tokenizer
+        self.tokenizer = tokenizer or HFTokenizer(MODERNGENA)
         hidden = backbone.config.hidden_size
         self.head = nn.Sequential(nn.Linear(hidden, hidden), nn.GELU(), nn.Linear(hidden, embed_dim))
         if freeze_layers:
             self.backbone.embeddings.requires_grad_(False)
-            for layer in _layers(self.backbone)[:freeze_layers]:
+            for layer in self.backbone.layers[:freeze_layers]:
                 layer.requires_grad_(False)
 
     @classmethod
@@ -117,7 +71,7 @@ class DNAEncoder(nn.Module):
             cls_token_id=1,
             sep_token_id=2,
         )
-        return cls("tiny", ModernBertModel(cfg), HFTokenizer(MODERNGENA), embed_dim=embed_dim)
+        return cls(ModernBertModel(cfg), embed_dim=embed_dim)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         h = self.backbone(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state

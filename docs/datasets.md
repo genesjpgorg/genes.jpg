@@ -20,7 +20,6 @@ Source: Amass API, BiomedCore (PubMed/PMC literature), 22 searches, about $1 of 
 | **GenBank COI / BOLD** | >2.5M COI barcode sequences in GenBank; BOLD adds specimen metadata and images | PLoS One 2018 [doi:10.1371/journal.pone.0200177](https://doi.org/10.1371/journal.pone.0200177); GigaScience 2022 [doi:10.1093/gigascience/giac123](https://doi.org/10.1093/gigascience/giac123) |
 | **Earth BioGenome Project** (incl. ERGA, DToL) | Goal: reference genomes for all eukaryotes; Phase II roadmap | PNAS 2018 [doi:10.1073/pnas.1720115115](https://doi.org/10.1073/pnas.1720115115); Front Sci 2025 [doi:10.3389/fsci.2025.1514835](https://doi.org/10.3389/fsci.2025.1514835) |
 | **Genomes on a Tree (GoaT)** | Search engine for genome/assembly metadata across the tree of life. Use it to list which species have genomes | Wellcome Open Res 2023 [doi:10.12688/wellcomeopenres.18658.1](https://doi.org/10.12688/wellcomeopenres.18658.1) |
-| **BarcodeBERT pretraining library** | 1.5M invertebrate DNA barcodes | Bioinform Adv 2026, PMID 41878470, [doi:10.1093/bioadv/vbag054](https://doi.org/10.1093/bioadv/vbag054) |
 
 ## Tier 3: image sources (species-labelled)
 
@@ -32,9 +31,9 @@ Source: Amass API, BiomedCore (PubMed/PMC literature), 22 searches, about $1 of 
 
 ## Encoders worth reusing (DNA side)
 
-- **BarcodeBERT**: barcode-specific transformer ([doi:10.1093/bioadv/vbag054](https://doi.org/10.1093/bioadv/vbag054))
+- **ModernGENA**: ModernBERT DNA foundation model ([AIRI-Institute/moderngena-base](https://huggingface.co/AIRI-Institute/moderngena-base))
 - **DNABERT-S**: species-aware DNA embeddings ([doi:10.1093/bioinformatics/btaf188](https://doi.org/10.1093/bioinformatics/btaf188))
-- **DNACSE**: contrastive fine-tuning for barcodes, reported to beat BarcodeBERT ([doi:10.1021/acs.jcim.5c02747](https://doi.org/10.1021/acs.jcim.5c02747))
+- **DNACSE**: contrastive fine-tuning for barcodes ([doi:10.1021/acs.jcim.5c02747](https://doi.org/10.1021/acs.jcim.5c02747))
 
 ## Within-species analogues (genotype → appearance)
 
@@ -48,5 +47,5 @@ Source: Amass API, BiomedCore (PubMed/PMC literature), 22 searches, about $1 of 
 - **TreeOfLife-10M / BioCLIP**, **Arboretum**: large tree-of-life image sets with taxonomy, which can be joined to genomes by taxon.
 
 ## Suggested approach
-1. Start with paired barcode–image data (BIOSCAN-5M, MassID45, BOLD vouchers). Train a DNA encoder (BarcodeBERT/DNABERT-S) → image generator (conditional diffusion).
+1. Start with paired barcode–image data (BIOSCAN-5M, MassID45, BOLD vouchers). Train a DNA encoder (ModernGENA) → image generator (conditional diffusion).
 2. Scale up by joining whole genomes (NCBI/EBP/DToL via GoaT) to iNaturalist/TreeOfLife images on NCBI taxon ID. Supervision is then species-level, not specimen-level.

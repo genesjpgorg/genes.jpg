@@ -12,7 +12,7 @@ COI barcode ─► [1] ModernGENA ─► [2] aligned DNA emb ─► [3] diffusio
 
 | Step | Module | What is trained | Data | Compute |
 |---|---|---|---|---|
-| 1 DNA encoder | `genesjpg/encoders.py` `DNAEncoder` | ModernGENA (`AIRI-Institute/moderngena-base`, 22-layer ModernBERT, GENA-LM 32k BPE; fine-tuned) + mean-pool + MLP head → 512-d; `--encoder barcodebert` keeps BarcodeBERT | — | CPU |
+| 1 DNA encoder | `genesjpg/encoders.py` `DNAEncoder` | ModernGENA (`AIRI-Institute/moderngena-base`, 22-layer ModernBERT, GENA-LM 32k BPE; fine-tuned) + mean-pool + MLP head → 512-d | — | CPU |
 | 2 Alignment | `genesjpg/align.py` | DNA tower only; BioCLIP image/text towers frozen. Loss: label-aware InfoNCE DNA↔image + 0.5·DNA↔taxonomy text | paired DNA+image (BIOSCAN-5M) | CPU |
 | 3 Prior | `genesjpg/prior.py` `DiffusionPrior` | MLP denoiser, x0-prediction, cosine schedule, CFG, DDIM sampling | paired | CPU |
 | 4 Decoder | `genesjpg/decoder.py` `EmbeddingDecoder` | `EmbeddingProjector` (BioCLIP emb → 8 cross-attention tokens) into frozen SD 1.5; optional full UNet fine-tune | images only (any species photos) | GPU |
@@ -45,22 +45,6 @@ GPU, which requires a payment method on the Modal workspace.
 `train-align` / `train-prior` print DNA→image retrieval on the eval splits: specimen top-1/top-5 (find the exact
 specimen's photo), and species/genus top-1 (nearest photo has the right label). The prior also reports mean cosine
 between sampled and true image embeddings. Checkpoints and `*_metrics.json` go to `<data>/checkpoints/`.
-
-## First CPU run (BIOSCAN-5M subset, BarcodeBERT encoder)
-
-20k train / 3k `val` (seen species) / 3k `val_unseen` (species absent from train), CPU only, `train-align --epochs 5`
-(~19 min/epoch on 8 cores) then `train-prior --epochs 50`. Retrieval is among the 3k photos of the same split.
-
-| metric | val | val_unseen |
-|---|---|---|
-| align: specimen top-1 / top-5 | 0.114 / 0.341 | 0.013 / 0.050 |
-| align: species top-1 | 0.612 | 0.295 |
-| align: genus top-1 | 0.735 | 0.442 |
-| prior: cos(sampled, true image emb) | 0.717 | 0.612 |
-| prior: species / genus top-1 of sample | 0.575 / 0.725 | 0.283 / 0.455 |
-
-Alignment was still improving at epoch 5 on `val`; `val_unseen` plateaued after epoch 1–3. Not yet rerun with
-ModernGENA (~4× slower per CPU step; pretrained on vertebrate genomes rather than COI, so worth a head-to-head).
 
 ## Not yet done
 

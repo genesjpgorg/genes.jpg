@@ -13,7 +13,7 @@ The literature does not contain a direct "genome → whole-organism image" gener
 
 | Model | What it is | Why it matters here | Ref |
 |---|---|---|---|
-| **BarcodeBERT** | BERT pretrained on 1.5M invertebrate COI barcodes | Built for the exact input (COI barcodes) in BIOSCAN/BOLD; small enough for CPU embedding | Bioinform Adv 2026, [10.1093/bioadv/vbag054](https://doi.org/10.1093/bioadv/vbag054) |
+| **ModernGENA** | 22-layer ModernBERT DNA LM (135M params, GENA-LM 32k BPE), pretrained on 443 vertebrate genomes | Chosen encoder; efficient, long context (1024 tokens), ~107 tokens per COI barcode | [AIRI-Institute/moderngena-base](https://huggingface.co/AIRI-Institute/moderngena-base) (not in Amass) |
 | **DNACSE** | Contrastive (SimCSE-style) fine-tuning of DNA LMs for barcodes | Reported to beat using the base DNA LMs directly on barcode tasks; improves embedding geometry, which matters for conditioning | J Chem Inf Model 2026, [10.1021/acs.jcim.5c02747](https://doi.org/10.1021/acs.jcim.5c02747) |
 | **DNABERT-S** | Species-aware DNA embeddings via contrastive training | Embeddings cluster by species, which is what an image generator needs | ArXiv 2024 (indexed in Amass) |
 | **Scorpio** | Contrastive optimisation over DNA LM + k-mer embeddings | Generalises to novel taxa, useful for species unseen in training | Commun Biol 2025, [10.1038/s42003-025-07902-6](https://doi.org/10.1038/s42003-025-07902-6) |
@@ -22,7 +22,7 @@ The literature does not contain a direct "genome → whole-organism image" gener
 | **DNABERT-2, Nucleotide Transformer v2, GROVER** | General DNA foundation models | Benchmark: mean-pooled token embeddings work best for classification; general models are mixed on other tasks | Nat Commun 2025 benchmark, [10.1038/s41467-025-65823-8](https://doi.org/10.1038/s41467-025-65823-8) |
 | **Chaos Game Representation (CGR) + CNN** | Turns a genome into a 2D image, then uses a CNN | Cheap, alignment-free baseline for whole genomes | Bioinform Adv 2025, [10.1093/bioadv/vbaf193](https://doi.org/10.1093/bioadv/vbaf193); BMC Genomics 2024, [10.1186/s12864-024-11135-y](https://doi.org/10.1186/s12864-024-11135-y) |
 
-**Pick:** start with BarcodeBERT, or DNABERT-S with DNACSE-style contrastive fine-tuning, on COI barcodes. Move to HyenaDNA/Caduceus only for long sequences.
+**Pick:** ModernGENA (`AIRI-Institute/moderngena-base`, ModernBERT DNA LM; not in Amass), fine-tuned contrastively on COI barcodes. Move to HyenaDNA/Caduceus only for long sequences.
 
 ## 2. Aligning DNA and images in one embedding space (contrastive, CLIP-style)
 
@@ -34,7 +34,7 @@ The literature does not contain a direct "genome → whole-organism image" gener
 | **CLIBD / BIOSCAN-CLIP** **(not in Amass)** | COI barcode ↔ insect image ↔ taxonomy text | Built on exactly our data (BIOSCAN-5M); gives a ready-made DNA–image space | arXiv/ICLR 2025 |
 | **BioCLIP** **(not in Amass)** | Tree-of-life image ↔ taxonomic text (TreeOfLife-10M) | Strong pretrained image encoder for species; also useful for evaluation | CVPR 2024 |
 
-**Pick:** fine-tune a CLIBD-style model, or train one: a BarcodeBERT DNA tower plus a BioCLIP image tower, with an InfoNCE loss on BIOSCAN-5M pairs. This alone gives **retrieval** ("show the closest real image"), which is a useful baseline before any generation.
+**Pick:** fine-tune a CLIBD-style model, or train one: a ModernGENA DNA tower plus a BioCLIP image tower, with an InfoNCE loss on BIOSCAN-5M pairs. This alone gives **retrieval** ("show the closest real image"), which is a useful baseline before any generation.
 
 ## 3. Conditional image generators
 
@@ -68,7 +68,7 @@ The literature does not contain a direct "genome → whole-organism image" gener
 
 ## 6. Recommended plan, given CPU-only compute for now
 
-1. **CPU, now:** compute BarcodeBERT/DNABERT-S embeddings for a BIOSCAN-5M subset (and BOLD). Build a **retrieval baseline**: nearest real image by DNA embedding, using frozen BioCLIP image embeddings plus a small learned linear projection. This runs on CPU.
+1. **CPU, now:** compute ModernGENA embeddings for a BIOSCAN-5M subset (and BOLD). Build a **retrieval baseline**: nearest real image by DNA embedding, using frozen BioCLIP image embeddings plus a small learned linear projection. This runs on CPU.
 2. **Small GPU (when available):** train a CLIBD-style contrastive DNA ↔ image model.
 3. **GPU:** fine-tune latent diffusion with a DNA-embedding adapter (IP-Adapter/LoRA), with classifier-free guidance; evaluate with BioCLIP species accuracy and FID.
 4. **Scale:** whole-genome conditioning (HyenaDNA/Caduceus, or Evo 2) for species with reference genomes (DToL/EBP), with images joined by taxon ID.

@@ -13,14 +13,12 @@ from .prior import DiffusionPrior
 
 
 def save_align(model: AlignModel, path: str | Path) -> None:
-    torch.save({"encoder": model.dna.name, "state_dict": model.state_dict()}, path)
+    torch.save({"state_dict": model.state_dict()}, path)
 
 
 def load_align(path: str | Path, dna_encoder: DNAEncoder | None = None) -> AlignModel:
-    state = torch.load(path, map_location="cpu")
-    model = AlignModel(dna_encoder or DNAEncoder(state.get("encoder", "barcodebert")))
-    sd = {k.replace("dna.bert.", "dna.backbone.", 1): v for k, v in state["state_dict"].items()}
-    model.load_state_dict(sd)
+    model = AlignModel(dna_encoder or DNAEncoder())
+    model.load_state_dict(torch.load(path, map_location="cpu")["state_dict"])
     return model.eval()
 
 

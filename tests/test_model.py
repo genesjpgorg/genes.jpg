@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from genesjpg.align import AlignModel, contrastive_loss, retrieval_metrics, train_align
 from genesjpg.data import label, synthetic_records, taxonomy_text
-from genesjpg.encoders import MODERNGENA, DNAEncoder, HFTokenizer, KmerTokenizer
+from genesjpg.encoders import MODERNGENA, DNAEncoder, HFTokenizer
 from genesjpg.pipeline import GenomeToImage, load_align, load_prior, save_align, save_prior
 from genesjpg.prior import DiffusionPrior, train_prior
 
@@ -17,15 +17,6 @@ def _species_embeddings(recs, dim=512, noise=0.3, seed=0):
     protos = F.normalize(torch.randn(len(labels), dim, generator=g), dim=-1)
     idx = torch.tensor([labels.index(label(r)) for r in recs])
     return F.normalize(protos[idx] + noise * torch.randn(len(recs), dim, generator=g) / dim**0.5, dim=-1)
-
-
-def test_tokenizer_matches_barcodebert_vocab():
-    tok = KmerTokenizer()
-    assert len(tok.vocab) == 256 and min(tok.vocab.values()) == 2
-    ids, mask = tok(["ACGTACGTNNNN", "ACGT"])
-    assert ids.shape == (2, 3)
-    assert ids[0, 2].item() == tok.unk_id
-    assert mask.tolist() == [[1, 1, 1], [1, 0, 0]]
 
 
 def test_moderngena_tokenizer_pads_and_masks():
