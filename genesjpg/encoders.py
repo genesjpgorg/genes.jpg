@@ -1,4 +1,9 @@
-"""Step 1 (ModernGENA DNA encoder) and the frozen BioCLIP image/text towers."""
+"""Step 1 (ModernGENA DNA encoder) and the frozen BioCLIP image/text towers.
+
+ModernGENA (AIRI-Institute/moderngena-base) is a 22-layer ModernBERT DNA language model (135M parameters) with
+GENA-LM's 32k BPE vocabulary; a ~650 bp COI barcode becomes ~107 tokens. BioCLIP (imageomics/bioclip) is a CLIP
+model trained on TreeOfLife-10M whose image and text embeddings define the 512-d target space.
+"""
 
 from __future__ import annotations
 
@@ -22,6 +27,7 @@ class HFTokenizer:
         self.max_len = max_len
 
     def __call__(self, seqs: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
+        """Tokenise DNA strings (upper-cased, [CLS] ... [SEP], padded to the longest, truncated to max_len)."""
         enc = self.tok(
             [s.strip().upper() for s in seqs],
             padding=True,
@@ -33,7 +39,14 @@ class HFTokenizer:
 
 
 class DNAEncoder(nn.Module):
-    """ModernGENA + mean pooling + MLP head onto BioCLIP's unit sphere."""
+    """ModernGENA + masked mean pooling + MLP head, L2-normalised into BioCLIP's 512-d space.
+
+    Args:
+        backbone: a ModernBERT-style model; defaults to pretrained ModernGENA.
+        tokenizer: callable returning (input_ids, attention_mask); defaults to ModernGENA's tokenizer.
+        embed_dim: output size (BioCLIP's embedding size).
+        freeze_layers: freeze the token embeddings and the first N transformer layers (cheaper CPU training).
+    """
 
     def __init__(
         self,
@@ -74,6 +87,7 @@ class DNAEncoder(nn.Module):
         return cls(ModernBertModel(cfg), embed_dim=embed_dim)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """Token ids (B, L) -> unit-norm embeddings (B, embed_dim)."""
         h = self.backbone(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
         m = attention_mask.unsqueeze(-1).to(h.dtype)
         pooled = (h * m).sum(1) / m.sum(1).clamp(min=1)
@@ -81,6 +95,7 @@ class DNAEncoder(nn.Module):
 
     @torch.no_grad()
     def encode(self, seqs: list[str], batch_size: int = 256) -> torch.Tensor:
+        """Embed raw DNA strings in eval mode; returns a CPU tensor (len(seqs), embed_dim)."""
         self.eval()
         device = next(self.parameters()).device
         out = []
@@ -103,14 +118,17 @@ class BioCLIP:
 
     @torch.no_grad()
     def encode_images(self, images) -> torch.Tensor:
+        """PIL images -> unit-norm image embeddings (N, 512) on CPU."""
         x = torch.stack([self.preprocess(im) for im in images]).to(self.device)
         return F.normalize(self.model.encode_image(x).float(), dim=-1).cpu()
 
     @torch.no_grad()
     def encode_texts(self, texts: list[str]) -> torch.Tensor:
+        """Captions -> unit-norm text embeddings (N, 512) on CPU."""
         return F.normalize(self.model.encode_text(self.tokenizer(texts).to(self.device)).float(), dim=-1).cpu()
 
     def embed_files(self, paths: list[str | Path], batch_size: int = 64) -> torch.Tensor:
+        """Embed image files in batches, printing progress."""
         from PIL import Image
 
         out = []

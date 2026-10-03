@@ -26,6 +26,8 @@ FIELDS = ["processid", "split", "dna_barcode", "dna_bin", *TAXONOMY, "image_path
 
 @dataclass
 class Entry:
+    """Location of one member inside a remote zip archive."""
+
     name: str
     offset: int
     compress_size: int
@@ -33,6 +35,7 @@ class Entry:
 
 
 def _list_split(zip_name: str, split: str) -> list[Entry]:
+    """List the JPEGs of one split from the remote zip's central directory, sorted by file offset."""
     prefix = f"bioscan5m/images/cropped_256/{split}/"
     with RemoteZip(HF_BASE + zip_name) as z:
         out = [
@@ -53,12 +56,14 @@ def _select_blocks(entries: list[Entry], n: int, n_blocks: int) -> list[list[Ent
 
 
 def _range(url: str, start: int, end: int) -> bytes:
+    """Fetch bytes [start, end) of a URL with an HTTP Range request."""
     r = requests.get(url, headers={"Range": f"bytes={start}-{end - 1}"}, timeout=600)
     r.raise_for_status()
     return r.content
 
 
 def _extract_block(url: str, block: list[Entry]) -> dict[str, bytes]:
+    """Download a contiguous run of zip entries in one request and decompress each member."""
     start = block[0].offset
     last = block[-1]
     end = last.offset + 30 + 1024 + last.compress_size  # local header + generous name/extra slack
@@ -77,6 +82,7 @@ def _extract_block(url: str, block: list[Entry]) -> dict[str, bytes]:
 
 
 def _stream_metadata(wanted: set[str]) -> dict[str, dict]:
+    """Stream-decompress the metadata CSV out of its zip and keep only rows whose processid is in ``wanted``."""
     url = HF_BASE + METADATA_ZIP
     with RemoteZip(url) as z:
         info = z.getinfo(METADATA_MEMBER)
@@ -150,6 +156,7 @@ def download_subset(out_dir: str | Path, n_train: int = 20000, n_eval: int = 300
 
 
 def read_records(csv_path: str | Path, split: str | None = None) -> list[dict]:
+    """Read the records CSV written by ``download_subset``, optionally filtered to one split."""
     with open(csv_path, newline="") as f:
         rows = list(csv.DictReader(f))
     return [r for r in rows if split is None or r["split"] == split]

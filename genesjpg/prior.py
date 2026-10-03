@@ -14,6 +14,7 @@ from torch import nn
 
 
 def cosine_alphas_cumprod(timesteps: int, s: float = 0.008) -> torch.Tensor:
+    """Cumulative signal fraction alpha_bar_t of the cosine noise schedule (Nichol & Dhariwal 2021)."""
     t = torch.linspace(0, timesteps, timesteps + 1, dtype=torch.float64) / timesteps
     f = torch.cos((t + s) / (1 + s) * math.pi / 2) ** 2
     betas = (1 - f[1:] / f[:-1]).clamp(max=0.999)
@@ -21,6 +22,7 @@ def cosine_alphas_cumprod(timesteps: int, s: float = 0.008) -> torch.Tensor:
 
 
 def timestep_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
+    """Sinusoidal embedding of integer diffusion timesteps, shape (B, dim)."""
     half = dim // 2
     freqs = torch.exp(-math.log(10000) * torch.arange(half, device=t.device) / half)
     args = t.float()[:, None] * freqs[None]
@@ -28,6 +30,8 @@ def timestep_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
 
 
 class ResBlock(nn.Module):
+    """Pre-norm residual MLP block; the timestep embedding is added before the MLP."""
+
     def __init__(self, width: int):
         super().__init__()
         self.norm = nn.LayerNorm(width)
@@ -38,6 +42,13 @@ class ResBlock(nn.Module):
 
 
 class DiffusionPrior(nn.Module):
+    """MLP denoiser over 512-d BioCLIP image embeddings, conditioned on the aligned DNA embedding.
+
+    Training: x0-prediction MSE on embeddings scaled to per-dimension variance ~1; the condition is replaced by a
+    learned null vector with probability ``cond_drop`` to enable classifier-free guidance.
+    Sampling: DDIM (eta=0) with guidance; outputs are re-normalised to the unit sphere.
+    """
+
     def __init__(
         self,
         dim: int = 512,
@@ -58,7 +69,7 @@ class DiffusionPrior(nn.Module):
         self.register_buffer("alphas_cumprod", cosine_alphas_cumprod(timesteps))
 
     def denoise(self, x_t: torch.Tensor, t: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
-        """Predicts the clean (scaled) embedding x0."""
+        """Predict the clean (scaled) embedding x0 from noisy ``x_t`` at timesteps ``t`` given ``cond``."""
         temb = self.time_mlp(timestep_embedding(t, self.width))
         h = self.inp(torch.cat([x_t, cond], dim=-1))
         for block in self.blocks:
@@ -66,6 +77,7 @@ class DiffusionPrior(nn.Module):
         return self.out(h)
 
     def loss(self, target: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
+        """Denoising loss for a batch of (image embedding, DNA embedding) pairs."""
         x0 = F.normalize(target, dim=-1) * self.scale
         t = torch.randint(0, self.timesteps, (len(x0),), device=x0.device)
         ab = self.alphas_cumprod[t][:, None]
@@ -106,6 +118,8 @@ def train_prior(
     eval_every: int = 10,
     device: str = "cpu",
 ) -> DiffusionPrior:
+    """Train the prior on (DNA embedding ``cond``, BioCLIP image embedding ``target``) pairs with AdamW and a
+    cosine LR schedule. ``eval_fn(prior) -> dict`` runs every ``eval_every`` epochs and at the end."""
     prior.to(device)
     opt = torch.optim.AdamW(prior.parameters(), lr=lr, weight_decay=0.01)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)

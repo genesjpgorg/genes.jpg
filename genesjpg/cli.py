@@ -15,6 +15,7 @@ from .data import download_subset, label, read_records, taxonomy_text
 
 
 def _paths(data: str) -> tuple[Path, Path]:
+    """Data root and its checkpoints/ directory (created if missing)."""
     root = Path(data)
     ckpt = root / "checkpoints"
     ckpt.mkdir(parents=True, exist_ok=True)
@@ -22,6 +23,7 @@ def _paths(data: str) -> tuple[Path, Path]:
 
 
 def _load(data: str):
+    """Records, precomputed BioCLIP embeddings, and processid -> embedding row index."""
     root, _ = _paths(data)
     recs = read_records(root / "records.csv")
     emb = torch.load(root / "embeddings.pt")
@@ -30,16 +32,19 @@ def _load(data: str):
 
 
 def _split(recs, emb, index, split):
+    """Records of one split with their image and taxonomy-text embeddings (row-aligned)."""
     rs = [r for r in recs if r["split"] == split and r["processid"] in index]
     ix = [index[r["processid"]] for r in rs]
     return rs, emb["image"][ix], emb["text"][ix]
 
 
 def cmd_download(a):
+    """Download the paired BIOSCAN-5M subset into --data."""
     download_subset(a.data, n_train=a.n_train, n_eval=a.n_eval, n_blocks=a.n_blocks)
 
 
 def cmd_embed(a):
+    """Compute frozen BioCLIP embeddings for every image and its taxonomy caption -> embeddings.pt."""
     from .encoders import BioCLIP
 
     root, _ = _paths(a.data)
@@ -60,6 +65,7 @@ def _eval_sets(recs, emb, index):
 
 
 def cmd_train_align(a):
+    """Steps 1-2: fine-tune ModernGENA against BioCLIP embeddings; writes align.pt + align_metrics.json."""
     from .align import AlignModel, retrieval_metrics, train_align
     from .encoders import DNAEncoder
     from .pipeline import save_align
@@ -99,6 +105,7 @@ def cmd_train_align(a):
 
 
 def cmd_train_prior(a):
+    """Step 3: train the diffusion prior on (aligned DNA emb, image emb) pairs; writes prior.pt."""
     from .align import retrieval_metrics
     from .pipeline import load_align, save_prior
     from .prior import DiffusionPrior, train_prior
@@ -135,6 +142,7 @@ def cmd_train_prior(a):
 
 
 def cmd_train_decoder(a):
+    """Step 4: train the SD decoder on images + their BioCLIP embeddings; writes decoder.pt (GPU)."""
     from .decoder import EmbeddingDecoder, train_decoder
 
     root, ckpt = _paths(a.data)
@@ -157,6 +165,7 @@ def cmd_train_decoder(a):
 
 
 def cmd_generate(a):
+    """Print the nearest real specimens for a barcode and, if decoder.pt exists, save generated images."""
     from .pipeline import GenomeToImage
 
     root, ckpt = _paths(a.data)
@@ -183,6 +192,7 @@ def cmd_generate(a):
 
 
 def main(argv=None):
+    """Parse arguments and run one pipeline command."""
     p = argparse.ArgumentParser(prog="genesjpg")
     p.add_argument("--data", default="data", help="data/checkpoint directory")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")

@@ -17,6 +17,9 @@ SD_MODEL = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 
 
 class EmbeddingProjector(nn.Module):
+    """Maps one BioCLIP image embedding (B, emb_dim) to ``n_tokens`` UNet cross-attention tokens
+    (B, n_tokens, cross_dim), standing in for CLIP text-encoder hidden states."""
+
     def __init__(self, emb_dim: int = 512, cross_dim: int = 768, n_tokens: int = 8):
         super().__init__()
         self.n_tokens, self.cross_dim = n_tokens, cross_dim
@@ -28,6 +31,12 @@ class EmbeddingProjector(nn.Module):
 
 
 class EmbeddingDecoder(nn.Module):
+    """Stable Diffusion (VAE + UNet) driven by a BioCLIP image embedding instead of a text prompt.
+
+    By default only the ``EmbeddingProjector`` is trained (VAE and UNet frozen); ``train_unet=True`` also
+    fine-tunes the UNet. The text encoder and tokenizer of the SD checkpoint are never loaded.
+    """
+
     def __init__(
         self,
         model_id: str = SD_MODEL,
@@ -47,10 +56,18 @@ class EmbeddingDecoder(nn.Module):
         self.train_unet = train_unet
 
     def trainable_parameters(self):
+        """Parameters to optimise: the projector, plus the UNet if ``train_unet``."""
         return [p for p in self.parameters() if p.requires_grad]
 
     def loss(self, pixels: torch.Tensor, emb: torch.Tensor, drop_prob: float = 0.1) -> torch.Tensor:
-        """pixels in [-1, 1], shape (B, 3, H, W); emb are BioCLIP image embeddings."""
+        """Latent-diffusion noise-prediction loss.
+
+        Args:
+            pixels: images in [-1, 1], shape (B, 3, H, W).
+            emb: their BioCLIP image embeddings, shape (B, emb_dim).
+            drop_prob: probability of zeroing an embedding, which trains the unconditional branch used by
+                classifier-free guidance at sampling time.
+        """
         with torch.no_grad():
             latents = self.vae.encode(pixels).latent_dist.sample() * self.vae.config.scaling_factor
         noise = torch.randn_like(latents)
@@ -74,6 +91,7 @@ class EmbeddingDecoder(nn.Module):
         size: int | None = None,
         generator: torch.Generator | None = None,
     ):
+        """Sample one PIL image per embedding with DDIM and classifier-free guidance (zero embedding = uncond)."""
         from PIL import Image
 
         device = emb.device
@@ -91,12 +109,14 @@ class EmbeddingDecoder(nn.Module):
         return [Image.fromarray(im) for im in images]
 
     def save(self, path: str | Path) -> None:
+        """Save trained weights only (projector, plus UNet if it was fine-tuned)."""
         state = {"projector": self.projector.state_dict()}
         if self.train_unet:
             state["unet"] = self.unet.state_dict()
         torch.save(state, path)
 
     def load(self, path: str | Path) -> None:
+        """Load weights written by ``save`` on top of the pretrained SD checkpoint."""
         state = torch.load(path, map_location="cpu")
         self.projector.load_state_dict(state["projector"])
         if "unet" in state:
@@ -104,6 +124,7 @@ class EmbeddingDecoder(nn.Module):
 
 
 def image_transform(size: int):
+    """Resize + centre-crop to ``size`` and scale to [-1, 1], as Stable Diffusion's VAE expects."""
     from torchvision import transforms
 
     return transforms.Compose(
@@ -127,6 +148,8 @@ def train_decoder(
     max_steps: int | None = None,
     device: str = "cpu",
 ) -> EmbeddingDecoder:
+    """Train the decoder on images and their BioCLIP embeddings (row i of ``emb`` belongs to
+    ``image_paths[i]``). Stops after ``epochs`` or ``max_steps`` optimiser steps, whichever comes first."""
     from PIL import Image
 
     decoder.to(device).train()

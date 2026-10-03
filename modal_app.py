@@ -35,6 +35,7 @@ CPU = {"image": image, "volumes": {VOLUME_DIR: volume}, "cpu": 8.0, "memory": 16
 
 
 def _cli(*args: str) -> None:
+    """Run a genesjpg CLI command against the shared Volume, then persist its outputs."""
     from genesjpg.cli import main
 
     volume.reload()
@@ -64,12 +65,14 @@ def train_decoder(max_steps: int = 2000, batch_size: int = 8, size: int = 512) -
 
 @app.function(image=image, volumes={VOLUME_DIR: volume}, gpu="T4", timeout=30 * 60)
 def generate(processid: str = "", dna: str = "", n: int = 4) -> None:
+    """Retrieve nearest real photos and generate ``n`` images for a BIOSCAN processid or a raw barcode."""
     target = ["--processid", processid] if processid else ["--dna", dna]
     _cli("generate", *target, "--n", str(n), "--out", f"{DATA_DIR}/samples/{processid or 'dna'}")
 
 
 @app.function(image=image, gpu="T4", timeout=600)
 def gpu_check() -> str:
+    """Report whether CUDA is visible inside a Modal GPU container."""
     import torch
 
     if not torch.cuda.is_available():
@@ -79,5 +82,6 @@ def gpu_check() -> str:
 
 @app.local_entrypoint()
 def main(n_train: int = 20000, n_eval: int = 3000, align_epochs: int = 5, prior_epochs: int = 50) -> None:
+    """Default `modal run`: data prep then steps 1-3, all on CPU."""
     prepare.remote(n_train, n_eval)
     train_cpu.remote(align_epochs, prior_epochs)
