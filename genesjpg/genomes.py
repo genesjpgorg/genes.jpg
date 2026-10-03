@@ -177,6 +177,37 @@ def window_sampler(records: list[dict], seed: int = 0):
     return lambda idx: [genomes[records[i]["genome"]].sample(rng) for i in idx]
 
 
+# NCBI names -> the iNaturalist-style names in BioCLIP's training captions (TreeOfLife-10M). NCBI-only clades
+# (Viridiplantae, Streptophyta) are replaced, and groups NCBI ranks differently are read from the lineage taxids.
+KINGDOM_NAMES = {"Metazoa": "Animalia", "Viridiplantae": "Plantae"}
+CLASS_NAMES = {"Actinopteri": "Actinopterygii", "Hyperoartia": "Petromyzonti"}
+PLANT_PHYLA = {  # lineage taxid -> phylum, for NCBI's phylum Streptophyta
+    58023: "Tracheophyta",
+    3208: "Bryophyta",
+    3195: "Marchantiophyta",
+    13809: "Anthocerotophyta",
+}
+CLASS_BY_LINEAGE = {  # lineage taxid -> class; NCBI ranks these as clade/subclass inside another class
+    4447: "Liliopsida",  # monocots, inside NCBI class Magnoliopsida
+    7778: "Elasmobranchii",  # sharks and rays, inside Chondrichthyes
+    7863: "Holocephali",  # chimaeras, inside Chondrichthyes
+    8504: "Reptilia",  # lizards, snakes, tuatara (NCBI class Lepidosauria)
+    8459: "Reptilia",  # turtles (no class rank in NCBI)
+    1294634: "Reptilia",  # crocodilians (no class rank in NCBI)
+}
+
+
+def bioclip_ranks(species: dict) -> tuple[str, str, str]:
+    """(kingdom, phylum, class) of a dataset species row (NCBI taxonomy) in BioCLIP's caption vocabulary."""
+    lineage = {int(t) for t in str(species.get("lineage_taxids") or "").split("|") if t}
+    kingdom, phylum, cls = (species.get(k) or "" for k in ("kingdom", "phylum", "class"))
+    kingdom = KINGDOM_NAMES.get(kingdom, kingdom)
+    if phylum == "Streptophyta":
+        phylum = next((n for t, n in PLANT_PHYLA.items() if t in lineage), "")
+    cls = next((n for t, n in CLASS_BY_LINEAGE.items() if t in lineage), CLASS_NAMES.get(cls, cls))
+    return kingdom, phylum, cls
+
+
 def _revcomp(s: str) -> str:
     return s.translate(_COMP)[::-1]
 
@@ -368,6 +399,7 @@ def prepare_records(
     records = []
     for taxid, ps in sorted(by_species.items()):
         s, b = species[taxid], by_taxid[taxid]
+        kingdom, phylum, cls = bioclip_ranks(s)
         rng.shuffle(ps)
         n_val = round(len(ps) * val_frac)
         for k, p in enumerate(ps):
@@ -385,9 +417,9 @@ def prepare_records(
                     "genus": s["genus"],
                     "species": s["scientific_name"],
                     "image_path": str(dataset / images[p["image_id"]]["file"]),
-                    "kingdom": "Animalia" if s["kingdom"] == "Metazoa" else s["kingdom"],
-                    "phylum": s["phylum"],
-                    "class": s["class"],
+                    "kingdom": kingdom,
+                    "phylum": phylum,
+                    "class": cls,
                     "ncbi_taxid": taxid,
                 }
             )

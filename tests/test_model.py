@@ -272,3 +272,36 @@ def test_pooled_metrics_unseen_species_must_beat_seen():
     assert m == {"pooled_species_top1": 0.0, "pooled_genus_top1": 0.0}
     # against its own single-species split it would be trivially right
     assert retrieval_metrics(q, e[2:], ["c c"], ["c"])["species_top1"] == 1.0
+
+
+def test_bioclip_ranks_from_ncbi_species():
+    from genesjpg.genomes import bioclip_ranks
+
+    def row(k, p, c, lineage):
+        return {
+            "kingdom": k,
+            "phylum": p,
+            "class": c,
+            "lineage_taxids": "|".join(map(str, lineage)),
+        }
+
+    fox = row("Metazoa", "Chordata", "Mammalia", [1, 33208, 7711, 40674])
+    assert bioclip_ranks(fox) == ("Animalia", "Chordata", "Mammalia")
+    asparagus = row(
+        "Viridiplantae", "Streptophyta", "Magnoliopsida", [33090, 35493, 58023, 3398, 4447]
+    )
+    assert bioclip_ranks(asparagus) == ("Plantae", "Tracheophyta", "Liliopsida")
+    coffee = row("Viridiplantae", "Streptophyta", "Magnoliopsida", [33090, 35493, 58023, 3398])
+    assert bioclip_ranks(coffee) == ("Plantae", "Tracheophyta", "Magnoliopsida")
+    moss = row("Viridiplantae", "Streptophyta", "Bryopsida", [33090, 35493, 3208])
+    assert bioclip_ranks(moss) == ("Plantae", "Bryophyta", "Bryopsida")
+    shark = row("Metazoa", "Chordata", "Chondrichthyes", [7711, 7777, 7778])
+    assert bioclip_ranks(shark) == ("Animalia", "Chordata", "Elasmobranchii")
+    perch = row("Metazoa", "Chordata", "Actinopteri", [7711, 7898, 186623])
+    assert bioclip_ranks(perch) == ("Animalia", "Chordata", "Actinopterygii")
+    lizard = row("Metazoa", "Chordata", "Lepidosauria", [7711, 32561, 8504, 8509])
+    assert bioclip_ranks(lizard) == ("Animalia", "Chordata", "Reptilia")
+    turtle = row("Metazoa", "Chordata", "", [7711, 32561, 8459])
+    assert bioclip_ranks(turtle) == ("Animalia", "Chordata", "Reptilia")
+    fungus = row("Fungi", "Basidiomycota", "Agaricomycetes", [4751, 5204])
+    assert bioclip_ranks(fungus) == ("Fungi", "Basidiomycota", "Agaricomycetes")
