@@ -22,6 +22,7 @@ import torch.nn.functional as F
 
 from .data import FIELDS
 
+DNA_CONTROLS = ("none", "shuffle_tokens", "permute_genomes")
 RECORD_FIELDS = [*FIELDS, "genome", "kingdom", "phylum", "class", "ncbi_taxid"]
 # > 1024 tokens of DNA even in repeat-rich sequence; the tokenizer truncates the rest
 WINDOW_BP = 10_000
@@ -228,8 +229,13 @@ def prepare_records(
     seed: int = 0,
     genome_cache: str | Path | None = None,
     workers: int = 8,
+    dna_control: str = "none",
 ) -> Path:
     """Write <out_dir>/records.csv (model format) from a genome <-> image dataset.
+
+    ``dna_control`` (control experiments, recorded in prepare.json; splits are unchanged): ``permute_genomes``
+    gives every species another species' genome (a seeded single-cycle permutation, so none keeps its own and
+    no two share one); ``shuffle_tokens`` is applied by ``train-align`` (token order shuffled in every window).
 
     Each assembly is packed into ``genome_cache`` (default ``<dataset>/../_packed_genomes``, shared across
     runs) and records point to it in ``genome``.
@@ -243,6 +249,20 @@ def prepare_records(
     species = {s["ncbi_taxid"]: s for s in _rows(dataset / "species.csv")}
     images = {i["image_id"]: i for i in _rows(dataset / "images.csv")}
     pairs = _rows(dataset / "pairs.csv")
+    if dna_control not in DNA_CONTROLS:
+        raise ValueError(f"dna_control must be one of {DNA_CONTROLS}, not {dna_control!r}")
+    own = {p["ncbi_taxid"]: p["assembly_accession"] for p in pairs}
+    assigned = dict(own)
+    if dna_control == "permute_genomes":  # Sattolo's algorithm: one cycle through all species
+        taxa = sorted(own)
+        perm = list(range(len(taxa)))
+        prng = random.Random(
+            f"permute_genomes:{seed}"
+        )  # separate stream: splits stay as without control
+        for i in range(len(perm) - 1, 0, -1):
+            j = prng.randrange(i)
+            perm[i], perm[j] = perm[j], perm[i]
+        assigned = {t: own[taxa[perm[k]]] for k, t in enumerate(taxa)}
 
     rng = random.Random(seed)
     by_species: dict[str, list[dict]] = {}
@@ -257,7 +277,7 @@ def prepare_records(
         n_val = round(len(ps) * val_frac)
         for k, p in enumerate(ps):
             split = "val_unseen" if taxid in unseen else ("val" if k < n_val else "train")
-            b = by_accession[p["assembly_accession"]]
+            b = by_accession[assigned[taxid]]
             records.append(
                 {
                     "processid": p["image_id"],
@@ -290,7 +310,9 @@ def prepare_records(
                 "unseen": sorted(unseen),
                 "val_frac": val_frac,
                 "seed": seed,
+                "dna_control": dna_control,
                 "counts": counts,
+                **({"genome_assignment": assigned} if dna_control == "permute_genomes" else {}),
             },
             indent=2,
         )

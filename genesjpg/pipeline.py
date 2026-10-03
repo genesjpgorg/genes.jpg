@@ -16,14 +16,17 @@ from .prior import DiffusionPrior
 
 
 def save_align(model: AlignModel, path: str | Path) -> None:
-    """Save the full alignment model (fine-tuned ModernGENA + head + temperature)."""
-    torch.save({"state_dict": model.state_dict()}, path)
+    """Save the full alignment model (fine-tuned ModernGENA + head + temperature) and its DNA control flag."""
+    shuffle = bool(getattr(model.dna.tokenizer, "shuffle", False))
+    torch.save({"state_dict": model.state_dict(), "shuffle_tokens": shuffle}, path)
 
 
 def load_align(path: str | Path, dna_encoder: DNAEncoder | None = None) -> AlignModel:
-    """Load an alignment checkpoint into ``dna_encoder`` (default: a fresh ModernGENA ``DNAEncoder``)."""
-    model = AlignModel(dna_encoder or DNAEncoder())
-    model.load_state_dict(torch.load(path, map_location="cpu")["state_dict"])
+    """Load an alignment checkpoint into ``dna_encoder`` (default: a fresh ModernGENA ``DNAEncoder``, with the
+    token-shuffle control restored if the checkpoint was trained with it)."""
+    state = torch.load(path, map_location="cpu")
+    model = AlignModel(dna_encoder or DNAEncoder(shuffle_tokens=state.get("shuffle_tokens", False)))
+    model.load_state_dict(state["state_dict"])
     return model.eval()
 
 

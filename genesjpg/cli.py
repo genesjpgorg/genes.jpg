@@ -32,6 +32,12 @@ def _load(data: str):
     return recs, emb, index
 
 
+def _dna_control(data: str) -> str:
+    """The run's DNA control experiment, as recorded by ``prepare`` (``none`` for older or BIOSCAN runs)."""
+    meta = Path(data) / "prepare.json"
+    return json.loads(meta.read_text()).get("dna_control", "none") if meta.exists() else "none"
+
+
 def _split(recs, emb, index, split):
     """Records of one split with their image and taxonomy-text embeddings (row-aligned)."""
     rs = [r for r in recs if r["split"] == split and r["processid"] in index]
@@ -56,6 +62,7 @@ def cmd_prepare(a):
         seed=a.seed,
         genome_cache=a.genome_cache,
         workers=a.workers,
+        dna_control=a.dna_control,
     )
 
 
@@ -113,7 +120,10 @@ def cmd_train_align(a):
     train, img, txt = _split(recs, emb, index, "train")
     evals = _eval_sets(recs, emb, index)
     pooled = _pooled_gallery(evals)
-    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers))
+    shuffle = _dna_control(a.data) == "shuffle_tokens"
+    if shuffle:
+        print("DNA control: token order shuffled in every window")
+    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers, shuffle_tokens=shuffle))
 
     def eval_fn(m):
         out = {}
@@ -307,7 +317,8 @@ def cmd_evaluate(a):
             }
         del clip
     if genome and "frozen_linear" in a.methods:
-        q = ev.frozen_linear_queries(table, targets, a.device)
+        shuffle = _dna_control(a.data) == "shuffle_tokens"
+        q = ev.frozen_linear_queries(table, targets, a.device, shuffle_tokens=shuffle)
         methods["frozen_linear"] = {
             g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
         }
@@ -355,6 +366,12 @@ def main(argv=None):
     )
     s.add_argument("--val-frac", type=float, default=0.2)
     s.add_argument("--workers", type=int, default=8, help="parallel genome packing processes")
+    s.add_argument(
+        "--dna-control",
+        choices=["none", "shuffle_tokens", "permute_genomes"],
+        default="none",
+        help="control experiment: shuffle token order in every window, or give species each other's genomes",
+    )
     s.add_argument(
         "--genome-cache",
         default=None,

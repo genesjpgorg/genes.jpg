@@ -170,7 +170,9 @@ def caption_queries(table: dict, targets: list[str], clip, rank: str) -> dict:
     return dict(zip(texts, emb))
 
 
-def frozen_linear_queries(table: dict, targets: list[str], device: str, alpha: float = 1.0) -> dict:
+def frozen_linear_queries(
+    table: dict, targets: list[str], device: str, alpha: float = 1.0, shuffle_tokens: bool = False
+) -> dict:
     """Ridge regression from frozen ModernGENA genome embeddings (mean-pooled hidden states over fixed windows)
     to training species' photo centroids; predictions for the targets."""
     from transformers import AutoModel
@@ -178,7 +180,7 @@ def frozen_linear_queries(table: dict, targets: list[str], device: str, alpha: f
     from .encoders import MODERNGENA, HFTokenizer
     from .genomes import PackedGenome
 
-    tok = HFTokenizer(MODERNGENA)
+    tok = HFTokenizer(MODERNGENA, shuffle=shuffle_tokens)
     lm = AutoModel.from_pretrained(MODERNGENA).to(device).eval()
 
     @torch.no_grad()
