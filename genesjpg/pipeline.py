@@ -1,4 +1,4 @@
-"""End-to-end inference: DNA barcode -> aligned DNA embedding -> prior -> decoder -> image.
+"""End-to-end inference: DNA (barcode or packed genome) -> aligned DNA embedding -> prior -> decoder -> image.
 
 Also holds checkpoint save/load helpers for the alignment model and the prior.
 """

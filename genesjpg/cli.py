@@ -1,6 +1,7 @@
 """Command line: python -m genesjpg <command> --data DIR ...
 
-Stages: download (BIOSCAN-5M) or prepare (a genes.jpg genome <-> image dataset) -> embed -> train-align -> train-prior -> train-decoder -> generate.
+Stages: download (BIOSCAN-5M) or prepare (a genes.jpg genome <-> image dataset) -> embed -> train-align
+-> train-prior -> train-decoder -> generate.
 """
 
 from __future__ import annotations
@@ -82,9 +83,27 @@ def _eval_sets(recs, emb, index):
     return {s: _split(recs, emb, index, s) for s in ("val", "val_unseen")}
 
 
+def _pooled_gallery(evals):
+    """All held-out images (val + val_unseen) with their species and genus labels."""
+    rs = [r for s in evals for r in evals[s][0]]
+    im = torch.cat([evals[s][1] for s in evals])
+    return im, [label(r) for r in rs], [r["genus"] for r in rs]
+
+
+def _eval_metrics(q, rs, im, pooled):
+    """Per-split retrieval metrics plus species/genus top-1 against the pooled held-out gallery.
+
+    Every image of a species shares one DNA input, so specimen_top1/5 are at chance by construction; and with
+    few species in a split its own species_top1 is easy (1.0 when it holds one species): read pooled_*."""
+    from .align import pooled_metrics, retrieval_metrics
+
+    labs, gens = [label(r) for r in rs], [r["genus"] for r in rs]
+    return {**retrieval_metrics(q, im, labs, gens), **pooled_metrics(q, labs, gens, *pooled)}
+
+
 def cmd_train_align(a):
     """Steps 1-2: fine-tune ModernGENA against BioCLIP embeddings; writes align.pt + align_metrics.json."""
-    from .align import AlignModel, retrieval_metrics, train_align
+    from .align import AlignModel, train_align
     from .encoders import DNAEncoder
     from .genomes import embed_records, window_sampler
     from .pipeline import save_align
@@ -93,14 +112,14 @@ def cmd_train_align(a):
     recs, emb, index = _load(a.data)
     train, img, txt = _split(recs, emb, index, "train")
     evals = _eval_sets(recs, emb, index)
+    pooled = _pooled_gallery(evals)
     model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers))
 
     def eval_fn(m):
         out = {}
         for s, (rs, im, _) in evals.items():
             if rs:
-                q = embed_records(m.dna, rs)
-                met = retrieval_metrics(q, im, [label(r) for r in rs], [r["genus"] for r in rs])
+                met = _eval_metrics(embed_records(m.dna, rs), rs, im, pooled)
                 out.update({f"{s}/{k}": v for k, v in met.items()})
         return out
 
@@ -127,7 +146,7 @@ def cmd_train_align(a):
 
 def cmd_train_prior(a):
     """Step 3: train the diffusion prior on (aligned DNA emb, image emb) pairs; writes prior.pt."""
-    from .align import retrieval_metrics
+    from .align import pooled_metrics, retrieval_metrics
     from .genomes import embed_records
     from .pipeline import load_align, save_prior
     from .prior import DiffusionPrior, train_prior
@@ -138,11 +157,13 @@ def cmd_train_prior(a):
     train, img, _ = _split(recs, emb, index, "train")
     cond = embed_records(align.dna, train)
     evals = {}
-    for s, (rs, im, _) in _eval_sets(recs, emb, index).items():
+    eval_sets = _eval_sets(recs, emb, index)
+    pooled = _pooled_gallery(eval_sets)
+    for s, (rs, im, _) in eval_sets.items():
         if rs:
             q = embed_records(align.dna, rs)
             evals[s] = (q, im, [label(r) for r in rs], [r["genus"] for r in rs])
-            base = retrieval_metrics(q, im, evals[s][2], evals[s][3])
+            base = _eval_metrics(q, rs, im, pooled)
             print(f"{s} baseline (aligned DNA emb, no prior): {base}")
 
     def eval_fn(p):
@@ -154,9 +175,9 @@ def cmd_train_prior(a):
             ).cpu()
             out[f"{s}/cos"] = (sampled * im).sum(-1).mean().item()
             met = retrieval_metrics(sampled, im, labs, gens)
-            out.update(
-                {f"{s}/{k}": v for k, v in met.items() if k in ("species_top1", "genus_top1")}
-            )
+            met.update(pooled_metrics(sampled, labs, gens, *pooled))
+            keep = ("species_top1", "genus_top1", "pooled_species_top1", "pooled_genus_top1")
+            out.update({f"{s}/{k}": v for k, v in met.items() if k in keep})
         return out
 
     prior = DiffusionPrior(width=a.width, depth=a.depth)
@@ -182,7 +203,14 @@ def cmd_train_decoder(a):
 
     root, ckpt = _paths(a.data)
     recs, emb, index = _load(a.data)
-    recs = [r for r in recs if r["processid"] in index]
+    # the decoder sees no DNA, but training it on val_unseen photos would leak the held-out species' looks
+    # into "generate an unseen species"; --include-unseen trains on every image (e.g. a final model)
+    recs = [
+        r
+        for r in recs
+        if r["processid"] in index and (a.include_unseen or r["split"] != "val_unseen")
+    ]
+    print(f"decoder: training on {len(recs)} images")
     decoder = EmbeddingDecoder(a.model_id, n_tokens=a.n_tokens, train_unet=a.train_unet)
     train_decoder(
         decoder,
@@ -299,6 +327,7 @@ def main(argv=None):
     s.add_argument("--n-tokens", type=int, default=8)
     s.add_argument("--train-unet", action="store_true")
     s.add_argument("--max-steps", type=int, default=None)
+    s.add_argument("--include-unseen", action="store_true", help="also train on val_unseen photos")
     s.set_defaults(fn=cmd_train_decoder)
 
     s = sub.add_parser("generate")

@@ -5,19 +5,20 @@
 Datasets and models for **genome ↔ organism image** learning: given DNA, predict what the organism looks like; given
 a photo, retrieve the matching genome. The repository has two parts:
 
-- **Model** (`genesjpg/`): a DNA barcode (the ~650 bp mitochondrial COI region used to identify animal species) →
-  image model, trained first on insects from [BIOSCAN-5M](https://huggingface.co/datasets/bioscan-ml/BIOSCAN-5M),
-  where every specimen has both a barcode and a photo.
+- **Model** (`genesjpg/`): a DNA → image model. Its DNA input is either random 1024-token windows of a species'
+  nuclear reference genome (from the dataset pipeline below) or a DNA barcode (the ~650 bp mitochondrial COI region
+  used to identify animal species, e.g. insects from [BIOSCAN-5M](https://huggingface.co/datasets/bioscan-ml/BIOSCAN-5M),
+  where every specimen has both a barcode and a photo).
 - **Dataset pipeline** (`src/datasets/`, CLI `genes-datasets`): builds validated species-level datasets that pair
   NCBI RefSeq reference genomes with licensed organism photos; the first is a 5-species mammal smoke dataset
   (`tol200m-mammals-smoke`).
 
-Status (2026-10-03): model steps 1–3 are implemented and tested with tiny models; they have not been trained on real
-data with ModernGENA yet, and the Stable Diffusion decoder is untrained (no GPU). The dataset pipeline is in place and
-`tol200m-mammals-smoke` (5 RefSeq genomes, 250 images, 250 pairs) has been built, validated and independently audited.
-`python -m genesjpg prepare` feeds a built dataset to the model, either as random 1024-token windows of each species'
-nuclear genome (default) or as its COI barcode; the full pipeline has been smoke-tested on `tol200m-mammals-smoke`
-(see [docs/model.md](docs/model.md#genome-datasets)).
+Status (2026-10-03): the dataset pipeline is in place and `tol200m-mammals-smoke` (5 RefSeq genomes, 250 images,
+250 pairs) has been built, validated and independently audited. All four model steps have run end to end on it on one
+GPU, with ModernGENA and Stable Diffusion 1.5, from nuclear-genome windows and, for comparison, from COI barcodes
+(`python -m genesjpg prepare`). The four training species are recognised and rendered; a held-out fifth species is not
+(4 species are far too few to generalise). The model has not yet been trained at scale (no BIOSCAN-5M run, no
+multi-species mammal run). Details and numbers: [docs/model.md](docs/model.md#genome-datasets).
 
 ## Architecture
 
@@ -31,8 +32,9 @@ review: [docs/architectures.md](docs/architectures.md)):
 
 ```
                  ┌──────────────────────── trained on paired DNA + photo ────────────────────────┐
-COI barcode ──► [1] DNA encoder ──► [2] aligned DNA embedding ──► [3] diffusion prior ──► BioCLIP image embedding
-                 ModernGENA            (512-d, BioCLIP space)        samples one plausible           │
+DNA input ────► [1] DNA encoder ──► [2] aligned DNA embedding ──► [3] diffusion prior ──► BioCLIP image embedding
+genome windows   ModernGENA            (512-d, BioCLIP space)        samples one plausible           │
+or COI barcode
                                               │                      image embedding                 │
                                               │                                                      ▼
                                               └──► retrieval baseline:                 [4] decoder: Stable Diffusion
@@ -45,9 +47,9 @@ COI barcode ──► [1] DNA encoder ──► [2] aligned DNA embedding ──
 
 | Step | What it does | Model | Trained? | Code |
 |---|---|---|---|---|
-| 1. DNA encoder | Turns a barcode into a vector: tokenise, run the transformer, mean-pool, project to 512-d with an MLP | [ModernGENA](https://huggingface.co/AIRI-Institute/moderngena-base), 22-layer ModernBERT DNA LM, 135M params, 32k BPE tokens (~107 per barcode) | fine-tuned in step 2 | `genesjpg/encoders.py` `DNAEncoder` |
-| 2. Alignment | Pulls each DNA vector next to the frozen [BioCLIP](https://huggingface.co/imageomics/bioclip) embedding of the same specimen's photo, plus (weight 0.5) the embedding of its taxonomy caption, e.g. *"a photo of Animalia Arthropoda Insecta Coleoptera Latridiidae Cortinicara gibbosa"*. Label-aware InfoNCE: specimens of the same species in a batch are all positives | DNA encoder + learned temperature; BioCLIP frozen | yes, CPU | `genesjpg/align.py` |
-| 3. Prior | One barcode fits many photos (pose, sex, life stage), so instead of regressing an average it *samples* a BioCLIP image embedding given the DNA embedding | MLP diffusion model, x0-prediction, cosine schedule, classifier-free guidance, DDIM sampling | yes, CPU | `genesjpg/prior.py` `DiffusionPrior` |
+| 1. DNA encoder | Turns DNA into a vector: tokenise, run the transformer, mean-pool, project to 512-d with an MLP. A genome is too long for one pass: training sees a fresh random window per image per step, and a genome is embedded as the mean over 32 fixed windows | [ModernGENA](https://huggingface.co/AIRI-Institute/moderngena-base), 22-layer ModernBERT DNA LM, 135M params, 32k BPE tokens, 1024-token context (~6.3 kb of mammal DNA; ~107 tokens per barcode) | fine-tuned in step 2 | `genesjpg/encoders.py` `DNAEncoder`, `genesjpg/genomes.py` |
+| 2. Alignment | Pulls each DNA vector next to the frozen [BioCLIP](https://huggingface.co/imageomics/bioclip) embedding of the same specimen's photo, plus (weight 0.5) the embedding of its taxonomy caption, e.g. *"a photo of Animalia Chordata Mammalia Carnivora Canidae Vulpes vulpes"*. Label-aware InfoNCE: specimens of the same species in a batch are all positives | DNA encoder + learned temperature; BioCLIP frozen | yes (GPU; CPU feasible for barcodes) | `genesjpg/align.py` |
+| 3. Prior | One DNA input fits many photos (pose, sex, life stage), so instead of regressing an average it *samples* a BioCLIP image embedding given the DNA embedding | MLP diffusion model, x0-prediction, cosine schedule, classifier-free guidance, DDIM sampling | yes, CPU or GPU | `genesjpg/prior.py` `DiffusionPrior` |
 | 4. Decoder | Renders an image from a BioCLIP image embedding, which is projected to 8 cross-attention tokens that replace the text prompt (IP-Adapter style) | Stable Diffusion 1.5 (frozen VAE + UNet) + `EmbeddingProjector`; optional UNet fine-tune | needs a GPU | `genesjpg/decoder.py` `EmbeddingDecoder` |
 
 `genesjpg/pipeline.py` `GenomeToImage` chains all four steps for inference.
@@ -56,20 +58,25 @@ COI barcode ──► [1] DNA encoder ──► [2] aligned DNA embedding ──
 - **The decoder never sees DNA.** It learns *image embedding → picture* from any species photos, so it can later use
   much larger image-only collections (iNaturalist, TreeOfLife-10M). Only steps 1–3, which are small, need the scarcer
   DNA–photo pairs.
-- **There is a baseline before generation.** After step 2, *DNA → nearest real photos* already works on CPU.
+- **There is a baseline before generation.** After step 2, *DNA → nearest real photos* already works.
 - **Each step is evaluated on its own:**
   - retrieval accuracy for step 2;
   - how close sampled embeddings are to the real ones for step 3;
   - image quality and species accuracy for step 4.
-  The `val_unseen` split holds species absent from training.
+  The `val_unseen` split holds species absent from training. Since all photos of a species share one DNA input,
+  the meaningful retrieval numbers are `pooled_species_top1` / `pooled_genus_top1`: queries against one gallery of
+  all held-out photos, seen and unseen species together (a split's own `species_top1` is 1.0 by construction when
+  it holds a single species).
 
 ## Layout
 
 ```
 genesjpg/                   DNA -> image model
   data.py                   BIOSCAN-5M subset download (HTTP range requests into the remote zips), records, captions
+  genomes.py                built dataset -> records.csv (`prepare`): nuclear-genome packing, random/fixed windows,
+                            genome embeddings; or COI barcodes from NCBI mitochondrial annotations
   encoders.py               step 1: ModernGENA DNAEncoder + HFTokenizer; frozen BioCLIP image/text towers
-  align.py                  step 2: contrastive loss, AlignModel, train_align, retrieval_metrics
+  align.py                  step 2: contrastive loss, AlignModel, train_align, retrieval/pooled metrics
   prior.py                  step 3: DiffusionPrior, train_prior
   decoder.py                step 4: EmbeddingProjector, EmbeddingDecoder, train_decoder
   pipeline.py               GenomeToImage (end-to-end inference, retrieval) + checkpoint helpers
@@ -101,7 +108,7 @@ docs/
   audits/                   independent audits of built datasets
 modal_app.py                Modal entrypoints for the model (CPU stages + GPU decoder/generation)
 .agents/skills/             Amass API skill used for the literature/dataset research
-data/datasets -> /mnt/filesystem-s8/genes.jpg/datasets   shared disk, git-ignored (see Setup)
+data/datasets -> <shared disk>/genes.jpg/datasets       git-ignored symlink (see Setup)
 ```
 
 ## Setup
@@ -109,17 +116,22 @@ data/datasets -> /mnt/filesystem-s8/genes.jpg/datasets   shared disk, git-ignore
 ```bash
 git clone https://github.com/genesjpgorg/genes.jpg.git && cd genes.jpg
 ~/.local/bin/uv sync                      # Python 3.12 env in .venv: dataset pipeline + dev tools (pytest, ruff)
-~/.local/bin/uv sync --extra model        # also install the model stack (torch, transformers, diffusers, open_clip)
+~/.local/bin/uv sync --extra model --python-preference only-managed
+                                          # also install the model stack (torch, transformers, diffusers, open_clip)
 
-# Large artefacts (raw source metadata, genomes, images) live on the shared disk, outside git.
-mkdir -p /mnt/filesystem-s8/genes.jpg/datasets data
-ln -s /mnt/filesystem-s8/genes.jpg/datasets data/datasets
+# Large artefacts (raw source metadata, genomes, images) live on a shared disk, outside git. The mount differs per
+# machine (/mnt/filesystem-s8 on some, /mnt/filesystem-a3 on others):
+DISK=/mnt/filesystem-a3
+mkdir -p $DISK/genes.jpg/datasets data
+ln -s $DISK/genes.jpg/datasets data/datasets
 
 .venv/bin/python -m pytest -q             # add -m "not network" to stay offline; model tests skip without --extra model
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
-`uv` and `uvx` are installed in `~/.local/bin`. The NCBI Datasets API needs no key; set
+`uv` and `uvx` are installed in `~/.local/bin` (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`).
+`--python-preference only-managed` uses uv's own CPython, which ships the C headers that ModernGENA's
+`torch.compile` (Triton) needs on GPU; a system Python without `python3.12-dev` fails at the first GPU step. The NCBI Datasets API needs no key; set
 `NCBI_API_KEY` for a higher rate limit. The TreeOfLife-200M metadata (27 GB raw, plus the
 0.5 GB `mammalia_*.parquet` subsets the source reads by default) is already on the shared
 disk; the one-off commands to recreate it are in
@@ -127,30 +139,49 @@ disk; the one-off commands to recreate it are in
 
 ## Model pipeline
 
-Every command reads and writes under `--data` (records, images, `embeddings.pt`, `checkpoints/`).
+Every command reads and writes under `--data` (`records.csv`, `embeddings.pt`, `checkpoints/`); `--device` defaults
+to `cuda` when available. First create `records.csv`, from a built dataset or from BIOSCAN-5M:
 
 ```bash
-python -m genesjpg --data data download --n-train 20000 --n-eval 3000   # paired BIOSCAN-5M subset
-python -m genesjpg --data data embed                                    # frozen BioCLIP image + caption embeddings
-python -m genesjpg --data data train-align --epochs 5                   # steps 1-2 (CPU; --freeze-layers N to speed up)
-python -m genesjpg --data data train-prior --epochs 50                  # step 3 (CPU)
-python -m genesjpg --data data train-decoder --max-steps 2000           # step 4 (GPU)
-python -m genesjpg --data data generate --processid <BOLD processid>    # nearest photos (+ images if decoder.pt exists)
+# a genes.jpg dataset: nuclear-genome windows (default) or --dna barcode; --unseen holds species out as val_unseen
+python -m genesjpg --data RUN prepare --dataset data/datasets/tol200m-mammals-smoke --unseen 9361
+# or a paired BIOSCAN-5M subset (barcodes + insect photos)
+python -m genesjpg --data RUN download --n-train 20000 --n-eval 3000
 ```
+
+then the same steps for both:
+
+```bash
+python -m genesjpg --data RUN embed                          # frozen BioCLIP image + caption embeddings
+python -m genesjpg --data RUN train-align --epochs 30        # steps 1-2 (--freeze-layers N to speed up)
+python -m genesjpg --data RUN train-prior --epochs 300       # step 3
+python -m genesjpg --data RUN train-decoder --max-steps 1000 # step 4 (GPU); skips val_unseen photos unless --include-unseen
+python -m genesjpg --data RUN generate --processid <id>      # nearest photos (+ images if decoder.pt exists)
+```
+
+`prepare` packs each genome once into `data/datasets/_packed_genomes/<accession>/` (about 1 byte per base, ~2.5 GB
+per mammal; nuclear sequences only). `--processid` is a BIOSCAN processid or a dataset `image_id`; for genome runs it
+generates from that image's species genome. The smoke-test settings above take minutes on one RTX PRO 6000.
 
 From Python:
 
 ```python
 from genesjpg.pipeline import GenomeToImage
 
-model = GenomeToImage.from_checkpoints("data/checkpoints", gallery=(image_embeddings, records))
-model.retrieve(barcode, k=5)  # [(record, cosine similarity), ...]
-images = model.generate(barcode, n=4)  # list of PIL images (needs decoder.pt)
+from genesjpg.genomes import PackedGenome
+
+model = GenomeToImage.from_checkpoints(
+    "RUN/checkpoints", gallery=(image_embeddings, records), device="cuda"
+)
+dna = PackedGenome("data/datasets/_packed_genomes/GCF_048418805.1")  # or a barcode string
+model.retrieve(dna, k=5)  # [(record, cosine similarity), ...]
+images = model.generate(dna, n=4)  # list of PIL images (needs decoder.pt)
 ```
 
 ### Modal
 
-`modal run modal_app.py` runs data prep and steps 1–3 on CPU, using the `genes-jpg-data` Volume.
+`modal run modal_app.py` runs data prep and steps 1–3 on CPU, using the `genes-jpg-data` Volume. It covers the
+BIOSCAN-5M barcode path only: the genome datasets live on the shared disk, not on the Volume.
 `modal run modal_app.py::train_decoder` and `::generate` need a GPU, which requires a payment method on the Modal
 workspace.
 
@@ -216,7 +247,7 @@ Config reference and a step-by-step description:
 
 ## The data so far
 
-`data/datasets/tol200m-mammals-smoke` (= `/mnt/filesystem-s8/genes.jpg/datasets/tol200m-mammals-smoke`),
+`data/datasets/tol200m-mammals-smoke`,
 built 2026-10-03 from [configs/tol200m-mammals-smoke.json](configs/tol200m-mammals-smoke.json):
 five mammals from five orders, each with a chromosome-level RefSeq reference genome and 50
 TreeOfLife-200M `Citizen Science` photos (one per observation, CC-licensed, iNaturalist
@@ -233,7 +264,7 @@ TreeOfLife-200M `Citizen Science` photos (one per observation, CC-licensed, iNat
 Totals: 5 genomes (4,162,803,657 bytes gzipped, all `reference genome`, MD5-verified against
 NCBI), 250 images (95,716,305 bytes; 219 from iNaturalist's open-data bucket, 22 Atlas of
 Living Australia, 9 observation.org), 250 pairs; 0 failed downloads. No split is assigned
-(`species.split` is empty).
+(`species.split` is empty); `genesjpg prepare` assigns model splits per run.
 
 Two independent audits ([docs/audits/tol200m-mammals-smoke.md](docs/audits/tol200m-mammals-smoke.md))
 re-derived every checksum, field and count from primary sources and found no defects. Known
@@ -246,7 +277,7 @@ caveats, also written into the dataset's own `README.md`:
 - `rights_holder` is `null` for 62 of 250 images (TreeOfLife-200M stores the placeholder
   `not provided`, which the source maps to `null`); the licence itself is always present.
 - `genome_size` is NCBI's nuclear primary-assembly length; two FASTA files also contain the
-  RefSeq mitochondrion, so their `n_sequences` is `scaffold_count + 1`.
+  RefSeq mitochondrion, so their `n_sequences` is `scaffold_count + 1` (`prepare` drops it).
 
 Why mammals and TreeOfLife-200M: RefSeq has current assemblies for only 270 mammal species, and
 TreeOfLife-200M covers 250 of them with 2.25 M images, the largest overlap of the four datasets
@@ -271,11 +302,13 @@ measured in [docs/survey_mammals.md](docs/survey_mammals.md).
 ## Next
 
 - Model:
-  - train steps 1–3 with ModernGENA, then the decoder once a GPU is available;
+  - train on many species with genus/family held out (needs the scaled mammal dataset below), and on BIOSCAN-5M;
   - add a standalone evaluation command, DNA-similarity/taxonomy baselines, and generated-image metrics
-    (FID/KID, BioCLIP species accuracy);
-  - whole-genome conditioning on the pipeline's RefSeq genomes via a long-context DNA model.
+    (FID/KID, BioCLIP species accuracy of generated images);
+  - better whole-genome conditioning than averaging windows: learned pooling over many windows or a long-context
+    DNA model.
 - Datasets:
+  - finish `tol200m-refseq-diverse` (on the shared disk: 59 of 146 genomes downloaded, no images or tables yet);
   - scale the config to all ~250 RefSeq mammals with hundreds of images each
     (`data/datasets/_survey/treeoflife-200m/refseq_intersect.csv` lists them with per-type image counts);
     ~0.4 MB per `large` image, ~0.8 GB per genome;

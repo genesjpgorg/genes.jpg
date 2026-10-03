@@ -238,3 +238,16 @@ def test_alignment_trains_on_sampled_windows():
 
     train_align(model, None, labels, img, img, epochs=2, batch_size=16, sample_dna=sample)
     assert calls == [16, 16, 16] * 2
+
+
+def test_pooled_metrics_unseen_species_must_beat_seen():
+    from genesjpg.align import pooled_metrics
+
+    e = torch.eye(3)
+    gallery, g_labels, g_genera = e, ["a a", "b b", "c c"], ["a", "b", "c"]
+    # a query for species "c c" that lands nearest to "a a": wrong in the pooled gallery
+    q = F.normalize(torch.tensor([[1.0, 0.0, 0.5]]), dim=-1)
+    m = pooled_metrics(q, ["c c"], ["c"], gallery, g_labels, g_genera)
+    assert m == {"pooled_species_top1": 0.0, "pooled_genus_top1": 0.0}
+    # against its own single-species split it would be trivially right
+    assert retrieval_metrics(q, e[2:], ["c c"], ["c"])["species_top1"] == 1.0
