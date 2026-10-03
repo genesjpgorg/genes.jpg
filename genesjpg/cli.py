@@ -45,7 +45,7 @@ def cmd_download(a):
 
 
 def cmd_prepare(a):
-    """Write records.csv into --data from a genome <-> image dataset (nuclear genome or COI barcode)."""
+    """Write records.csv into --data from a genome <-> image dataset (nuclear-genome windows)."""
     from .genomes import prepare_records
 
     prepare_records(
@@ -54,7 +54,6 @@ def cmd_prepare(a):
         unseen=a.unseen,
         val_frac=a.val_frac,
         seed=a.seed,
-        dna=a.dna,
         genome_cache=a.genome_cache,
     )
 
@@ -283,7 +282,6 @@ def main(argv=None):
         "--unseen", type=int, nargs="*", default=[], help="species taxids held out as val_unseen"
     )
     s.add_argument("--val-frac", type=float, default=0.2)
-    s.add_argument("--dna", choices=["genome", "barcode"], default="genome")
     s.add_argument(
         "--genome-cache",
         default=None,

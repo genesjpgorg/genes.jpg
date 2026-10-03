@@ -176,13 +176,6 @@ def test_taxonomy_text_uses_record_lineage():
     assert taxonomy_text(bioscan).startswith("a photo of Animalia Arthropoda Insecta Carnivora")
 
 
-def test_folmer_barcode():
-    from genesjpg.genomes import HCO2198, LCO1490, _revcomp, folmer_barcode
-
-    inner = "ACGT" * 164 + "AC"
-    assert folmer_barcode("AAA" + LCO1490 + inner + _revcomp(HCO2198) + "TTT") == inner
-
-
 def _fake_assembly(tmp_path, rng):
     """Gzipped FASTA with two nuclear chromosomes, one short scaffold and a mitochondrion."""
     import gzip
