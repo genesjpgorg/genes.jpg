@@ -195,12 +195,14 @@ def taxonomy_text(r: dict) -> str:
         names[-1] = species[
             len(genus) + 1 :
         ]  # BioCLIP style: "... Genus epithet", genus not repeated
-    # BIOSCAN records carry no ranks above order; other datasets add kingdom/phylum/class columns
-    higher = [
-        r.get(k) or d
-        for k, d in (("kingdom", "Animalia"), ("phylum", "Arthropoda"), ("class", "Insecta"))
-    ]
-    return "a photo of " + " ".join([*higher, *names])
+    # BIOSCAN records carry no ranks above order (all insects); other datasets add kingdom/phylum/class
+    # columns, whose empty values are skipped rather than filled with the insect lineage
+    higher_ranks = ("kingdom", "phylum", "class")
+    if any(k in r for k in higher_ranks):
+        higher = [(r.get(k) or "").strip() for k in higher_ranks]
+    else:
+        higher = ["Animalia", "Arthropoda", "Insecta"]
+    return "a photo of " + " ".join([*(h for h in higher if h), *names])
 
 
 def label(r: dict) -> str:

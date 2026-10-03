@@ -169,6 +169,10 @@ def test_taxonomy_text_uses_record_lineage():
         taxonomy_text(rec)
         == "a photo of Animalia Chordata Mammalia Carnivora Canidae Vulpes vulpes"
     )
+    partial = {**rec, "kingdom": "", "phylum": ""}
+    assert taxonomy_text(partial) == "a photo of Mammalia Carnivora Canidae Vulpes vulpes"
+    bioscan = {k: v for k, v in rec.items() if k not in ("kingdom", "phylum", "class")}
+    assert taxonomy_text(bioscan).startswith("a photo of Animalia Arthropoda Insecta Carnivora")
 
 
 def test_folmer_barcode():
