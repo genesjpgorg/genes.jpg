@@ -1,0 +1,50 @@
+{
+  "run_name": "longevity-anage100-chunks",
+  "checkpoint": "model.pt",
+  "checkpoint_sha256": "389765b8256d78b2a14590f258281ee7db480802b0a80ac44288f00b0d96937d",
+  "comparison_sha256": "0a929f9776d950c936353649cd19290c33411451e7cc70381071571f8ced752a",
+  "shuffle_seed": 0,
+  "shuffle": "fixed per assembly accession and chunk ID; DNA tokens only",
+  "results": {
+    "val": {
+      "intact": {
+        "n_species": 16,
+        "n_inputs": 16000,
+        "mae_log10": 0.19925407523789557,
+        "pearson_log10": 0.23345859235730837,
+        "mae_years": 7.436180973052979,
+        "pearson_years": 0.32566924990607643,
+        "spearman": 0.3941176470588235
+      },
+      "shuffled": {
+        "n_species": 16,
+        "n_inputs": 16000,
+        "mae_log10": 0.1688290149591773,
+        "pearson_log10": 0.24871633381729857,
+        "mae_years": 5.96575710773468,
+        "pearson_years": 0.36638159104575035,
+        "spearman": 0.3735294117647059
+      }
+    },
+    "test": {
+      "intact": {
+        "n_species": 18,
+        "n_inputs": 18000,
+        "mae_log10": 0.18780209840443732,
+        "pearson_log10": 0.2991908255698916,
+        "mae_years": 10.301606051127115,
+        "pearson_years": 0.29219188785602734,
+        "spearman": 0.3415892672858617
+      },
+      "shuffled": {
+        "n_species": 18,
+        "n_inputs": 18000,
+        "mae_log10": 0.20446169811475345,
+        "pearson_log10": 0.35437742713025033,
+        "mae_years": 11.261892880333793,
+        "pearson_years": 0.31459455173689377,
+        "spearman": 0.26109391124871
+      }
+    }
+  }
+}

@@ -156,7 +156,7 @@ def evaluate(model, df: pd.DataFrame, ids: list[np.ndarray], mu: float, sd: floa
     count_name = "n_chunks" if is_chunks else "n_genes"
     df = df[["ncbi_taxid", "scientific_name", "class", *identity, "log10_longevity"]].copy()
     df["pred_log10"] = preds * sd + mu
-    sp = (df.groupby(["ncbi_taxid", "scientific_name", "class"])
+    sp = (df.groupby(["ncbi_taxid", "scientific_name", "class"], dropna=False)
             .agg(true_log10=("log10_longevity", "first"), pred_log10=("pred_log10", "mean"),
                  pred_sd=("pred_log10", "std"), **{count_name: (count_col, "size")})
             .reset_index())
@@ -170,6 +170,7 @@ def evaluate(model, df: pd.DataFrame, ids: list[np.ndarray], mu: float, sd: floa
     if len(sp) >= 3:
         m["species_spearman"] = float(sp.true_log10.rank().corr(sp.pred_log10.rank()))  # no scipy
         m["species_pearson"] = float(sp.true_log10.corr(sp.pred_log10))
+    sp["class"] = sp["class"].fillna("unclassified")
     m["species"] = sp.round(4).to_dict("records")
     return m, df
 
@@ -215,6 +216,11 @@ def _main(argv, stack) -> None:
     ap.add_argument("--log-every", type=int, default=20)
     ap.add_argument("--no-save", action="store_true", help="skip writing model weights")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--eval-every-steps", type=int, default=0)
+    ap.add_argument("--eval-genes-per-species", type=int, default=0,
+                    help="Fixed per-species example cap during validation; also applies to chunks")
+    ap.add_argument("--final-eval-genes-per-species", type=int, default=0)
+    ap.add_argument("--save-best", action="store_true")
     ap.add_argument("--comparison", type=Path, help="Enforce a frozen CDS cohort and protocol")
     args = ap.parse_args(argv)
     spec = None
@@ -238,6 +244,8 @@ def _main(argv, stack) -> None:
     if (args.epochs <= 0 or args.max_len < 3 or args.evals_per_epoch < 1
             or args.log_every < 1 or args.max_steps < 0):
         ap.error("epochs, evals-per-epoch, log-every must be positive; max-len >= 3; max-steps >= 0")
+    if min(args.eval_every_steps, args.eval_genes_per_species, args.final_eval_genes_per_species) < 0:
+        ap.error("evaluation cadence and example caps must be nonnegative")
     if min(args.tokens_per_batch, args.eval_tokens_per_batch) < args.max_len:
         ap.error("token budgets must fit at least one complete input")
     if min(args.val_frac, args.test_frac) < 0 or args.val_frac + args.test_frac >= 1:
@@ -323,7 +331,7 @@ def _main(argv, stack) -> None:
     if args.max_steps:
         total_steps = min(total_steps, args.max_steps)
     warmup = max(1, int(args.warmup * total_steps))
-    eval_every = max(1, steps_per_epoch // args.evals_per_epoch)
+    eval_every = args.eval_every_steps or max(1, steps_per_epoch // args.evals_per_epoch)
 
     stop_steps = total_steps
     if spec and spec["budget"] == "updates":
@@ -365,11 +373,27 @@ def _main(argv, stack) -> None:
         metrics_f.write(json.dumps(rec) + "\n")
         metrics_f.flush()
 
-    def run_eval(step: int, epoch: float, split: str = "val") -> None:
+    best_val = float("inf")
+
+    def run_eval(step: int, epoch: float, split: str = "val", final=False) -> None:
+        nonlocal best_val
         if parts[split].empty:
             return
         t0 = time.time()
-        m, preds = evaluate(model, parts[split], ids[split], mu, sd, args, device)
+        cap = args.final_eval_genes_per_species if final else args.eval_genes_per_species
+        frame, split_ids = parts[split], ids[split]
+        if cap:
+            positions = np.sort(frame.groupby("ncbi_taxid", group_keys=False).sample(
+                frac=1, random_state=args.seed).groupby("ncbi_taxid", sort=False).head(cap).index)
+            frame = frame.iloc[positions].reset_index(drop=True)
+            split_ids = (split_ids.subset(positions) if is_chunks else [split_ids[i] for i in positions])
+        m, preds = evaluate(model, frame, split_ids, mu, sd, args, device)
+        if args.save_best and not final and split == "val" and m["species_mae_log10"] < best_val:
+            best_val = m["species_mae_log10"]
+            tmp = args.out / "best.pt.part"
+            torch.save({"model": model.state_dict(), "config": config, "step": step,
+                        "val_mae_log10": best_val}, tmp)
+            tmp.replace(args.out / "best.pt")
         preds.to_parquet(args.out / f"predictions_{split}.parquet")
         species = m.pop("species")
         write(dict(kind=split, step=step, epoch=round(epoch, 3), seconds=round(time.time() - t0, 1),
@@ -431,8 +455,8 @@ def _main(argv, stack) -> None:
 
     train_min = (time.time() - t_start) / 60
     log(f"training finished: {step} steps in {train_min:.1f} min")
-    run_eval(step, step / steps_per_epoch, "val")
-    run_eval(step, step / steps_per_epoch, "test")
+    run_eval(step, step / steps_per_epoch, "val", final=True)
+    run_eval(step, step / steps_per_epoch, "test", final=True)
     write({"kind": "done", "step": step, "train_minutes": train_min})
     if not args.no_save:
         torch.save({"model": model.state_dict(), "config": config}, args.out / "model.pt")

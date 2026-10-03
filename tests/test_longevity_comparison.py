@@ -109,6 +109,12 @@ def test_training_enforces_comparison(reference, tmp_path, monkeypatch, budget):
     monkeypatch.setattr("longevity.train.LongevityRegressor", Regressor)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     torch.set_num_threads(2)
+    if budget == "epochs":
+        cfg_path = reference[0] / "config.json"
+        cfg = json.loads(cfg_path.read_text())
+        cfg.update(eval_every_steps=100, eval_genes_per_species=50,
+                   final_eval_genes_per_species=0, save_best=True)
+        cfg_path.write_text(json.dumps(cfg))
     spec = create_spec(*reference, budget)
     spec_path = tmp_path / "spec.json"
     spec_path.write_text(json.dumps(spec))
@@ -137,7 +143,15 @@ def test_training_enforces_comparison(reference, tmp_path, monkeypatch, budget):
     ]
     assert metrics[-1]["step"] == expected_steps
     assert cfg["warmup_steps"] == (max(1, int(0.05 * expected_steps)) if budget == "epochs" else 1)
-    assert len([r for r in metrics if r["kind"] == "val"]) == 18
+    validations = [r for r in metrics if r["kind"] == "val"]
+    if budget == "epochs":
+        assert len(validations) == (expected_steps - 1) // 100 + 1
+        assert all(r["n_pairs"] == 50 for r in validations[:-1])
+        assert validations[-1]["n_pairs"] == 1000
+        saved = torch.load(tmp_path / "run/best.pt", weights_only=False)
+        assert saved["val_mae_log10"] == min(r["species_mae_log10"] for r in validations[:-1])
+    else:
+        assert len(validations) == 18
     # Correct shape and labels alone cannot pass off shards from a different protocol.
     bad_spec = copy.deepcopy(spec)
     bad_spec.pop("sha256")
