@@ -1,0 +1,29 @@
+[project]
+name = "genesjpg"
+version = "0.1.0"
+description = "Generate a species image from its DNA barcode"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "torchvision",
+    "transformers>=4.48,<5",
+    "open_clip_torch",
+    "diffusers",
+    "accelerate",
+    "safetensors",
+    "pillow",
+    "requests",
+    "remotezip",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools]
+packages = ["genesjpg"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120

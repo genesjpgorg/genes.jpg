@@ -23,7 +23,6 @@ Distinguish **specimen-paired DNA and images**, **species-level joins**, and **g
 |**GenBank COI / BOLD**|>2.5M COI barcode sequences in GenBank; BOLD adds specimen metadata and images|PLoS One 2018 [doi:10.1371/journal.pone.0200177](https://doi.org/10.1371/journal.pone.0200177); GigaScience 2022 [doi:10.1093/gigascience/giac123](https://doi.org/10.1093/gigascience/giac123)|
 |**Earth BioGenome Project** (incl. ERGA, DToL)|Goal: reference genomes for all eukaryotes; Phase II roadmap|PNAS 2018 [doi:10.1073/pnas.1720115115](https://doi.org/10.1073/pnas.1720115115); Front Sci 2025 [doi:10.3389/fsci.2025.1514835](https://doi.org/10.3389/fsci.2025.1514835)|
 |**Genomes on a Tree (GoaT)**|Search engine for genome/assembly metadata across the tree of life. Use it to list which species have genomes|Wellcome Open Res 2023 [doi:10.12688/wellcomeopenres.18658.1](https://doi.org/10.12688/wellcomeopenres.18658.1)|
-|**BarcodeBERT pretraining library**|1.5M invertebrate DNA barcodes|Bioinform Adv 2026, PMID 41878470, [doi:10.1093/bioadv/vbag054](https://doi.org/10.1093/bioadv/vbag054)|
 |**NCBI Datasets / GenBank / RefSeq assemblies**|Genome sequence, available annotation and assembly/taxon metadata; retrieve by taxon or accession through CLI/API. Pin assembly accession **and version**, and check which assemblies have annotation.|[Genome download guide](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/how-tos/genomes/download-genome/); [taxon CLI reference](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/reference-docs/command-line/datasets/download/genome/datasets_download_genome_taxon/)|
 |**Zoonomia**|A defined cohort of **240 placental mammal species**, with assemblies, whole-genome alignment, conservation scores and phylogeny. Candidate genomic side for an AnAge/image join; actual overlap must be measured. The complete HAL alignment is large: start with selected assemblies or loci.|[Official data catalog](https://zoonomiaproject.org/the-data/); [species/assembly table](https://karlssonlab.org/zoonomia/); [paper](https://doi.org/10.1038/s41586-020-2876-6)|
 |**TOGA comparative gene annotations**|Orthologous gene annotations and codon alignments across Zoonomia species and additional assemblies; useful for extracting corresponding loci rather than unrelated genome windows. Gene/CDS alignments do not automatically align upstream regulatory regions.|[Official download directory](https://genome.senckenberg.de/download/TOGA/); [Zoonomia access notes](https://zoonomiaproject.org/the-data/)|
@@ -57,9 +56,8 @@ These resources provide numeric or categorical targets for separate phenotype he
 ## Encoders worth reusing (DNA side)
 
 * **modernGENA**: pretrained vertebrate DNA encoder; selected windows need pooling/aggregation for a species-level representation. [Official repository and pretrained models](https://github.com/AIRI-Institute/GENA_LM).
-* **BarcodeBERT**: barcode-specific transformer ([doi:10.1093/bioadv/vbag054](https://doi.org/10.1093/bioadv/vbag054))
 * **DNABERT-S**: species-aware DNA embeddings ([doi:10.1093/bioinformatics/btaf188](https://doi.org/10.1093/bioinformatics/btaf188))
-* **DNACSE**: contrastive fine-tuning for barcodes, reported to beat BarcodeBERT ([doi:10.1021/acs.jcim.5c02747](https://doi.org/10.1021/acs.jcim.5c02747))
+* **DNACSE**: contrastive fine-tuning for barcodes ([doi:10.1021/acs.jcim.5c02747](https://doi.org/10.1021/acs.jcim.5c02747))
 
 ## Within-species analogues (genotype → appearance)
 
