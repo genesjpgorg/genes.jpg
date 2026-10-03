@@ -4,7 +4,7 @@
 
 ## Overview
 
-genes.jpg maps a DNA barcode (COI) to a picture of the organism. The model has four stages: a BarcodeBERT DNA encoder,
+genes.jpg maps a DNA barcode (COI) to a picture of the organism. The model has four stages: a ModernGENA DNA encoder,
 contrastive alignment with frozen BioCLIP image/taxonomy embeddings, a diffusion prior that samples an image
 embedding, and a Stable Diffusion decoder conditioned on that embedding. Details: [docs/model.md](docs/model.md).
 Background: [docs/datasets.md](docs/datasets.md), [docs/architectures.md](docs/architectures.md).

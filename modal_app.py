@@ -16,7 +16,7 @@ image = (
     .pip_install(
         "torch",
         "torchvision",
-        "transformers>=4.40,<5",
+        "transformers>=4.48,<5",
         "open_clip_torch",
         "diffusers",
         "accelerate",
@@ -50,9 +50,11 @@ def prepare(n_train: int = 20000, n_eval: int = 3000) -> None:
 
 
 @app.function(**CPU, timeout=4 * 60 * 60)
-def train_cpu(align_epochs: int = 5, prior_epochs: int = 50) -> None:
+def train_cpu(
+    align_epochs: int = 5, prior_epochs: int = 50, encoder: str = "moderngena", freeze_layers: int = 0
+) -> None:
     """Steps 1-3: DNA encoder alignment and the diffusion prior (CPU is enough)."""
-    _cli("train-align", "--epochs", str(align_epochs))
+    _cli("train-align", "--epochs", str(align_epochs), "--encoder", encoder, "--freeze-layers", str(freeze_layers))
     _cli("train-prior", "--epochs", str(prior_epochs))
 
 

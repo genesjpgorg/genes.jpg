@@ -1,4 +1,4 @@
-"""Step 1 (DNA encoder) and the frozen BioCLIP image/text towers."""
+"""Step 1 (DNA encoder: ModernGENA or BarcodeBERT) and the frozen BioCLIP image/text towers."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import torch.nn.functional as F
 from torch import nn
 
 BARCODEBERT = "bioscan-ml/BarcodeBERT"
+MODERNGENA = "AIRI-Institute/moderngena-base"
+ENCODERS = {"moderngena": MODERNGENA, "barcodebert": BARCODEBERT}
 BIOCLIP = "hf-hub:imageomics/bioclip"
 
 
@@ -39,36 +41,86 @@ class KmerTokenizer:
         return input_ids, mask
 
 
+class HFTokenizer:
+    """Wraps a Hugging Face tokenizer (e.g. GENA-LM's 32k DNA BPE) to return (input_ids, attention_mask)."""
+
+    def __init__(self, model_id: str, max_len: int = 1024):
+        from transformers import AutoTokenizer
+
+        self.tok = AutoTokenizer.from_pretrained(model_id)
+        self.max_len = max_len
+
+    def __call__(self, seqs: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
+        enc = self.tok(
+            [s.strip().upper() for s in seqs],
+            padding=True,
+            truncation=True,
+            max_length=self.max_len,
+            return_tensors="pt",
+        )
+        return enc["input_ids"], enc["attention_mask"]
+
+
+def _layers(backbone: nn.Module):
+    return backbone.layers if hasattr(backbone, "layers") else backbone.encoder.layer
+
+
+def load_backbone(name: str) -> tuple[nn.Module, object]:
+    """Pretrained DNA backbone + matching tokenizer for a key of ``ENCODERS``."""
+    if name == "barcodebert":
+        from transformers import BertModel
+
+        return BertModel.from_pretrained(BARCODEBERT, add_pooling_layer=False), KmerTokenizer()
+    if name == "moderngena":
+        from transformers import AutoModel
+
+        return AutoModel.from_pretrained(MODERNGENA), HFTokenizer(MODERNGENA)
+    raise ValueError(f"unknown encoder {name!r}; choose from {sorted(ENCODERS)}")
+
+
 class DNAEncoder(nn.Module):
-    """BarcodeBERT + mean pooling + MLP head, projected onto the unit sphere of BioCLIP's space."""
+    """Pretrained DNA LM (ModernGENA by default) + mean pooling + MLP head onto BioCLIP's unit sphere."""
 
-    def __init__(self, bert: nn.Module | None = None, embed_dim: int = 512, freeze_layers: int = 0):
+    def __init__(
+        self,
+        name: str = "moderngena",
+        backbone: nn.Module | None = None,
+        tokenizer=None,
+        embed_dim: int = 512,
+        freeze_layers: int = 0,
+    ):
         super().__init__()
-        if bert is None:
-            from transformers import BertModel
-
-            bert = BertModel.from_pretrained(BARCODEBERT, add_pooling_layer=False)
-        self.bert = bert
-        hidden = bert.config.hidden_size
+        if backbone is None:
+            backbone, tokenizer = load_backbone(name)
+        self.name = name
+        self.backbone = backbone
+        self.tokenizer = tokenizer
+        hidden = backbone.config.hidden_size
         self.head = nn.Sequential(nn.Linear(hidden, hidden), nn.GELU(), nn.Linear(hidden, embed_dim))
-        self.tokenizer = KmerTokenizer()
         if freeze_layers:
-            self.bert.embeddings.requires_grad_(False)
-            for layer in self.bert.encoder.layer[:freeze_layers]:
+            self.backbone.embeddings.requires_grad_(False)
+            for layer in _layers(self.backbone)[:freeze_layers]:
                 layer.requires_grad_(False)
 
     @classmethod
     def tiny(cls, embed_dim: int = 512) -> DNAEncoder:
-        """Randomly initialised small BERT, for tests."""
-        from transformers import BertConfig, BertModel
+        """Randomly initialised small ModernBERT with ModernGENA's tokenizer, for tests."""
+        from transformers import ModernBertConfig, ModernBertModel
 
-        cfg = BertConfig(
-            vocab_size=258, hidden_size=32, num_hidden_layers=2, num_attention_heads=2, intermediate_size=64
+        cfg = ModernBertConfig(
+            vocab_size=32768,
+            hidden_size=32,
+            intermediate_size=64,
+            num_hidden_layers=2,
+            num_attention_heads=2,
+            pad_token_id=3,
+            cls_token_id=1,
+            sep_token_id=2,
         )
-        return cls(BertModel(cfg, add_pooling_layer=False), embed_dim=embed_dim)
+        return cls("tiny", ModernBertModel(cfg), HFTokenizer(MODERNGENA), embed_dim=embed_dim)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
-        h = self.bert(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+        h = self.backbone(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
         m = attention_mask.unsqueeze(-1).to(h.dtype)
         pooled = (h * m).sum(1) / m.sum(1).clamp(min=1)
         return F.normalize(self.head(pooled), dim=-1)

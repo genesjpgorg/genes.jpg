@@ -68,7 +68,7 @@ def cmd_train_align(a):
     recs, emb, index = _load(a.data)
     train, img, txt = _split(recs, emb, index, "train")
     evals = _eval_sets(recs, emb, index)
-    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers))
+    model = AlignModel(DNAEncoder(a.encoder, freeze_layers=a.freeze_layers))
 
     def eval_fn(m):
         out = {}
@@ -203,7 +203,8 @@ def main(argv=None):
     s.add_argument("--batch-size", type=int, default=128)
     s.add_argument("--lr", type=float, default=1e-4)
     s.add_argument("--text-weight", type=float, default=0.5)
-    s.add_argument("--freeze-layers", type=int, default=0)
+    s.add_argument("--encoder", default="moderngena", choices=["moderngena", "barcodebert"])
+    s.add_argument("--freeze-layers", type=int, default=0, help="freeze embeddings + the first N backbone layers")
     s.set_defaults(fn=cmd_train_align)
 
     s = sub.add_parser("train-prior")

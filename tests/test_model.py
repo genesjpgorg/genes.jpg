@@ -4,8 +4,8 @@ import torch.nn.functional as F
 
 from genesjpg.align import AlignModel, contrastive_loss, retrieval_metrics, train_align
 from genesjpg.data import label, synthetic_records, taxonomy_text
-from genesjpg.encoders import DNAEncoder, KmerTokenizer
-from genesjpg.pipeline import GenomeToImage, load_prior, save_prior
+from genesjpg.encoders import MODERNGENA, DNAEncoder, HFTokenizer, KmerTokenizer
+from genesjpg.pipeline import GenomeToImage, load_align, load_prior, save_align, save_prior
 from genesjpg.prior import DiffusionPrior, train_prior
 
 TINY_SD = "hf-internal-testing/tiny-stable-diffusion-pipe"
@@ -26,6 +26,21 @@ def test_tokenizer_matches_barcodebert_vocab():
     assert ids.shape == (2, 3)
     assert ids[0, 2].item() == tok.unk_id
     assert mask.tolist() == [[1, 1, 1], [1, 0, 0]]
+
+
+def test_moderngena_tokenizer_pads_and_masks():
+    ids, mask = HFTokenizer(MODERNGENA)(["acgtacgtacgtttagcatcg", "ACGT"])
+    assert ids.shape == mask.shape and ids[0, 0].item() == 1  # [CLS]
+    assert mask[0].all() and not mask[1].all()
+    assert (ids[1][mask[1] == 0] == 3).all()  # [PAD]
+
+
+def test_align_checkpoint_round_trip(tmp_path):
+    model = AlignModel(DNAEncoder.tiny())
+    save_align(model, tmp_path / "align.pt")
+    loaded = load_align(tmp_path / "align.pt", DNAEncoder.tiny())
+    seqs = [r["dna_barcode"] for r in synthetic_records(4)]
+    torch.testing.assert_close(loaded.dna.encode(seqs), model.dna.encode(seqs))
 
 
 def test_contrastive_loss_prefers_aligned_pairs():
