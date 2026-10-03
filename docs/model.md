@@ -32,8 +32,10 @@ dataset built by `genes-datasets` (species/genomes/images/pairs tables), pairing
 DNA. Species given with `--unseen` become `val_unseen`; `--val-frac` of the other species' images become `val`.
 
 - `--dna genome` (default): each assembly is packed once into `<dataset>/../_packed_genomes/<accession>/`
-  (`sequence.u8`, upper-case ACGTN, plus `index.json`), **nuclear sequences only** (the assembly report's
-  non-nuclear molecules and any `mitochondrion` FASTA record are dropped). Alignment training draws a fresh random
+  (`sequence.u8`, upper-case ACGTN, plus `index.json`), **primary nuclear sequences only**: the assembly report's
+  non-nuclear molecules, any `mitochondrion` FASTA record, and alternate loci / patches (roles `alt-scaffold`,
+  `fix-patch`, `novel-patch`; 199 Mb in GRCh38) are dropped. Packs record a filter `version` and are rebuilt when
+  it changes. Alignment training draws a fresh random
   10 kb window per image per batch (no window crosses a sequence boundary or has > 1% N), which the tokenizer
   truncates to ModernGENA's 1024-token context (~6.3 kb on mammal DNA). For evaluation, the prior and generation, a
   genome is embedded as the re-normalised mean of 32 fixed (seeded) windows. Code: `genesjpg/genomes.py`.

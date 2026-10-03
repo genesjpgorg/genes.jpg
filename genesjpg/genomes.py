@@ -46,31 +46,37 @@ _NORM = bytes(  # upper-case ACGT (soft-masked repeats included); anything else 
 )
 
 
-def non_nuclear_accessions(report: Path) -> set[str] | None:
-    """Accessions (RefSeq and GenBank) of the non-nuclear sequences in an NCBI assembly report, i.e. the
-    ones to exclude; None if the report lists none."""
+PACK_VERSION = (
+    2  # bump when the sequence filter changes; packs written by another version are rebuilt
+)
+ORGANELLES = ("Mitochondrion", "Chloroplast", "Plastid", "Apicoplast")
+# alternate haplotypes and patches repeat regions already in the primary sequences (GRCh38: 199 Mb, GRCm39);
+# filtered by role, not by assembly-unit name, which is not always "Primary Assembly" (GRCm39's is "C57BL/6J")
+NON_PRIMARY_ROLES = ("alt-scaffold", "fix-patch", "novel-patch")
+
+
+def excluded_accessions(report: Path) -> set[str]:
+    """Accessions (RefSeq and GenBank) to leave out of a packed nuclear genome, from its NCBI assembly report:
+    organelle sequences, and alternate loci / patches."""
     out = set()
     for line in report.read_text().splitlines():
         f = line.split("\t")
         if line.startswith("#") or len(f) < 8:
             continue
-        if f[7] == "non-nuclear" or f[3] in (
-            "Mitochondrion",
-            "Chloroplast",
-            "Plastid",
-            "Apicoplast",
-        ):
+        if f[7] == "non-nuclear" or f[3] in ORGANELLES or f[1] in NON_PRIMARY_ROLES:
             out |= {a for a in (f[4], f[6]) if a != "na"}
-    return out or None
+    return out
 
 
 def pack_genome(fasta_gz: Path, report: Path, out_dir: Path) -> Path:
     """Write the nuclear sequences of a gzipped FASTA as one byte array (``sequence.u8``, upper-case ACGTN)
-    plus ``index.json`` (name, offset, length per sequence). Idempotent: skips if index.json exists."""
+    plus ``index.json`` (name, offset, length per sequence). Only primary nuclear sequences are kept (see
+    ``excluded_accessions``). Idempotent: skips if a pack of the current PACK_VERSION exists."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    if (out_dir / "index.json").exists():
+    index_path = out_dir / "index.json"
+    if index_path.exists() and json.loads(index_path.read_text()).get("version") == PACK_VERSION:
         return out_dir
-    exclude = non_nuclear_accessions(report) or set()
+    exclude = excluded_accessions(report)
     seqs, skipped, offset, name, keep = [], [], 0, None, False
     tmp = out_dir / "sequence.u8.tmp"
     with gzip.open(fasta_gz, "rb") as f, open(tmp, "wb") as out:
@@ -95,10 +101,17 @@ def pack_genome(fasta_gz: Path, report: Path, out_dir: Path) -> Path:
                 offset += len(chunk)
         close()
     tmp.rename(out_dir / "sequence.u8")
-    index = {"source": str(fasta_gz), "total_bp": offset, "excluded": skipped, "sequences": seqs}
-    (out_dir / "index.json").write_text(json.dumps(index))
+    index = {
+        "version": PACK_VERSION,
+        "source": str(fasta_gz),
+        "total_bp": offset,
+        "excluded": skipped,
+        "sequences": seqs,
+    }
+    index_path.write_text(json.dumps(index))
     print(
-        f"packed {fasta_gz.name}: {len(seqs)} nuclear sequences, {offset:,} bp; excluded {skipped}"
+        f"packed {fasta_gz.name}: {len(seqs)} nuclear sequences, {offset:,} bp; "
+        f"excluded {len(skipped)} ({', '.join(skipped[:3])}{', ...' if len(skipped) > 3 else ''})"
     )
     return out_dir
 

@@ -1,3 +1,4 @@
+import json
 import zlib
 
 import pytest
@@ -190,7 +191,13 @@ def _fake_assembly(tmp_path, rng):
     rng = random.Random(rng)
     chroms = {
         n: "".join(rng.choice("ACGTacgt") for _ in range(L))
-        for n, L in [("NC_1.1", 30_000), ("NC_2.1", 25_000), ("NW_3.1", 500), ("NC_MT.1", 16_000)]
+        for n, L in [
+            ("NC_1.1", 30_000),
+            ("NC_2.1", 25_000),
+            ("NW_3.1", 500),
+            ("NT_ALT.1", 12_000),
+            ("NC_MT.1", 16_000),
+        ]
     }
     fa = tmp_path / "x_genomic.fna.gz"
     with gzip.open(fa, "wt") as f:
@@ -203,6 +210,16 @@ def _fake_assembly(tmp_path, rng):
         ["2", "assembled-molecule", "2", "Chromosome", "CM2.1", "=", "NC_2.1", "Primary Assembly"],
         ["u", "unplaced-scaffold", "na", "na", "JA3.1", "=", "NW_3.1", "Primary Assembly"],
         ["MT", "assembled-molecule", "MT", "Mitochondrion", "na", "<>", "NC_MT.1", "non-nuclear"],
+        [
+            "HSCHR1_ALT",
+            "alt-scaffold",
+            "1",
+            "Chromosome",
+            "KI1.1",
+            "=",
+            "NT_ALT.1",
+            "ALT_REF_LOCI_1",
+        ],
     ]
     report.write_text("# Sequence-Name\tetc\n" + "".join("\t".join(r) + "\n" for r in rows))
     return fa, report, chroms
@@ -214,13 +231,17 @@ def test_pack_genome_nuclear_only_and_windows(tmp_path):
     fa, report, chroms = _fake_assembly(tmp_path, 0)
     out = pack_genome(fa, report, tmp_path / "packed")
     g = PackedGenome(out, window=10_000)
-    nuclear = {n: s.upper() for n, s in chroms.items() if n != "NC_MT.1"}
+    nuclear = {n: s.upper() for n, s in chroms.items() if n not in ("NC_MT.1", "NT_ALT.1")}
     assert g.seq.size == sum(map(len, nuclear.values()))
     assert len(g.spans) == 2  # the 500 bp scaffold is shorter than a window
     w = g.windows(8)
     assert w == PackedGenome(out, window=10_000).windows(8)  # fixed windows are deterministic
     assert all(len(x) == 10_000 and any(x in s for s in nuclear.values()) for x in w)
     assert not any(x in chroms["NC_MT.1"].upper() for x in w)
+    assert sorted(json.loads((out / "index.json").read_text())["excluded"]) == [
+        "NC_MT.1",
+        "NT_ALT.1",
+    ]
 
 
 def test_alignment_trains_on_sampled_windows():

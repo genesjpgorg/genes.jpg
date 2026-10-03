@@ -160,7 +160,7 @@ python -m genesjpg --data RUN generate --processid <id>      # nearest photos (+
 ```
 
 `prepare` packs each genome once into `data/datasets/_packed_genomes/<accession>/` (about 1 byte per base, ~2.5 GB
-per mammal; nuclear sequences only). `--processid` is a BIOSCAN processid or a dataset `image_id`; for genome runs it
+per mammal; primary nuclear sequences only: no organelles, alternate loci or patches). `--processid` is a BIOSCAN processid or a dataset `image_id`; for genome runs it
 generates from that image's species genome. The smoke-test settings above take minutes on one RTX PRO 6000.
 
 From Python:
