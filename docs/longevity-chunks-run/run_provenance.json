@@ -1,0 +1,11 @@
+{
+  "source_commit": "bd4412d9f71253e511963f0b6880c338565ddc52",
+  "huggingface_cached_revisions": {
+    "models--AIRI-Institute--gena-lm-bert-base-t2t/refs/main": "4f1352bd4e820f1dba341047f54ad7795e083bf2",
+    "models--AIRI-Institute--moderngena-base/refs/main": "7036ebb6eccbd299e7941363a15712706775c64e",
+    "models--kernels-community--flash-attn2/refs/main": "c3f3c93a4a39e3d2cf49c13eac49229bc726ea13"
+  },
+  "historical_software_match": "unverified",
+  "training_attention": "kernels-community/flash-attn2",
+  "initial_h5_smoke_steps": 3
+}

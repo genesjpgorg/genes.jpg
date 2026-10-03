@@ -1,0 +1,5 @@
+{
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB, 580.173.02",
+  "cpu_count": 24,
+  "platform": "Linux-6.11.0-1016-nvidia-x86_64-with-glibc2.39"
+}
