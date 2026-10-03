@@ -39,6 +39,11 @@ DNA. Species given with `--unseen` become `val_unseen`; `--val-frac` of the othe
   10 kb window per image per batch (no window crosses a sequence boundary or has > 1% N), which the tokenizer
   truncates to ModernGENA's 1024-token context (~6.3 kb on mammal DNA). For evaluation, the prior and generation, a
   genome is embedded as the re-normalised mean of 32 fixed (seeded) windows. Code: `genesjpg/genomes.py`.
+- Captions use each species' NCBI lineage, renamed to the iNaturalist-style names BioCLIP was trained on
+  (`bioclip_ranks`): Metazoa → Animalia, Viridiplantae → Plantae, Streptophyta → Tracheophyta / Bryophyta /
+  Marchantiophyta / Anthocerotophyta, Actinopteri → Actinopterygii, Hyperoartia → Petromyzonti, and from lineage
+  taxids monocots → Liliopsida, sharks and rays → Elasmobranchii, chimaeras → Holocephali, Lepidosauria / turtles /
+  crocodilians → Reptilia. Missing ranks are left out of the caption.
 - `--dna barcode`: the COI Folmer region (658 bp in mammals) from NCBI's annotation of the species' mitochondrial
   genome, or found by primer-site search when the mitochondrion is unannotated; provenance in `barcodes.csv`.
 
