@@ -1,0 +1,779 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/genesjpgorg/genes.jpg/schemas/dataset.schema.json#v0.1.0",
+  "title": "genes.jpg genome <-> image dataset",
+  "version": "0.1.0",
+  "description": "A dataset directory holds dataset.json (DatasetManifest) and the tables species/genomes/images/pairs; rows of each table validate against the corresponding record schema in $defs.",
+  "$defs": {
+    "SpeciesRecord": {
+      "additionalProperties": false,
+      "description": "One row per species present in the dataset.",
+      "properties": {
+        "ncbi_taxid": {
+          "description": "NCBI Taxonomy ID at species rank",
+          "title": "Ncbi Taxid",
+          "type": "integer"
+        },
+        "scientific_name": {
+          "description": "NCBI accepted scientific name (binomial)",
+          "title": "Scientific Name",
+          "type": "string"
+        },
+        "common_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Common Name"
+        },
+        "kingdom": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kingdom"
+        },
+        "phylum": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phylum"
+        },
+        "class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "taxonomic class",
+          "title": "Class"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        },
+        "family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family"
+        },
+        "genus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Genus"
+        },
+        "lineage_taxids": {
+          "description": "NCBI taxids from root to this species, inclusive",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Lineage Taxids",
+          "type": "array"
+        },
+        "source_names": {
+          "description": "verbatim names under which this species appeared in image sources",
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Names",
+          "type": "array"
+        },
+        "n_images": {
+          "default": 0,
+          "title": "N Images",
+          "type": "integer"
+        },
+        "n_genomes": {
+          "default": 0,
+          "title": "N Genomes",
+          "type": "integer"
+        },
+        "split": {
+          "anyOf": [
+            {
+              "enum": [
+                "train",
+                "val",
+                "test"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "species-held-out split assignment",
+          "title": "Split"
+        }
+      },
+      "required": [
+        "ncbi_taxid",
+        "scientific_name"
+      ],
+      "title": "SpeciesRecord",
+      "type": "object"
+    },
+    "AssemblyLevel": {
+      "enum": [
+        "Complete Genome",
+        "Chromosome",
+        "Scaffold",
+        "Contig"
+      ],
+      "title": "AssemblyLevel",
+      "type": "string"
+    },
+    "GenomeRecord": {
+      "additionalProperties": false,
+      "description": "One row per genome assembly file stored in the dataset.",
+      "properties": {
+        "assembly_accession": {
+          "description": "NCBI assembly accession incl. version, e.g. GCF_000001405.40",
+          "title": "Assembly Accession",
+          "type": "string"
+        },
+        "ncbi_taxid": {
+          "description": "taxid of the sequenced organism (may be a strain/subspecies)",
+          "title": "Ncbi Taxid",
+          "type": "integer"
+        },
+        "species_taxid": {
+          "description": "species-rank taxid; join key to SpeciesRecord",
+          "title": "Species Taxid",
+          "type": "integer"
+        },
+        "organism_name": {
+          "title": "Organism Name",
+          "type": "string"
+        },
+        "assembly_name": {
+          "title": "Assembly Name",
+          "type": "string"
+        },
+        "assembly_level": {
+          "$ref": "#/$defs/AssemblyLevel"
+        },
+        "refseq_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'reference genome', 'representative genome' or None",
+          "title": "Refseq Category"
+        },
+        "source": {
+          "default": "ncbi_refseq",
+          "enum": [
+            "ncbi_refseq",
+            "ncbi_genbank"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "release_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "YYYY-MM-DD",
+          "title": "Release Date"
+        },
+        "genome_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "total sequence length (bp) incl. gaps",
+          "title": "Genome Size"
+        },
+        "genome_size_ungapped": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Genome Size Ungapped"
+        },
+        "gc_percent": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gc Percent"
+        },
+        "scaffold_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scaffold Count"
+        },
+        "contig_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contig Count"
+        },
+        "scaffold_n50": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scaffold N50"
+        },
+        "contig_n50": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contig N50"
+        },
+        "ftp_path": {
+          "description": "NCBI FTP/HTTPS directory of the assembly",
+          "title": "Ftp Path",
+          "type": "string"
+        },
+        "sequence_file": {
+          "description": "path relative to dataset root of the genomic FASTA (.fna.gz)",
+          "title": "Sequence File",
+          "type": "string"
+        },
+        "sequence_md5": {
+          "description": "MD5 of sequence_file as published in NCBI md5checksums.txt, verified locally",
+          "title": "Sequence Md5",
+          "type": "string"
+        },
+        "sequence_bytes": {
+          "title": "Sequence Bytes",
+          "type": "integer"
+        },
+        "n_sequences": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "number of FASTA records (chromosomes/scaffolds)",
+          "title": "N Sequences"
+        },
+        "extra_files": {
+          "description": "other files kept, relative to dataset root (assembly report, md5checksums, ...)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Files",
+          "type": "array"
+        },
+        "downloaded_at": {
+          "format": "date-time",
+          "title": "Downloaded At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assembly_accession",
+        "ncbi_taxid",
+        "species_taxid",
+        "organism_name",
+        "assembly_name",
+        "assembly_level",
+        "ftp_path",
+        "sequence_file",
+        "sequence_md5",
+        "sequence_bytes",
+        "downloaded_at"
+      ],
+      "title": "GenomeRecord",
+      "type": "object"
+    },
+    "ImageType": {
+      "description": "Coarse image context, harmonised across sources (TreeOfLife-200M ``img_type``,\nPl@ntNet organ labels, ...). Keep the source's own label in ``ImageRecord.source_image_type``.",
+      "enum": [
+        "citizen_science",
+        "camera_trap",
+        "museum_specimen",
+        "lab_specimen",
+        "illustration",
+        "unknown"
+      ],
+      "title": "ImageType",
+      "type": "string"
+    },
+    "ImageRecord": {
+      "additionalProperties": false,
+      "description": "One row per image file stored in the dataset.",
+      "properties": {
+        "image_id": {
+          "description": "stable id: '<source_dataset>:<source_id>' or a UUID from the source",
+          "title": "Image Id",
+          "type": "string"
+        },
+        "ncbi_taxid": {
+          "description": "species-rank taxid; join key to SpeciesRecord",
+          "title": "Ncbi Taxid",
+          "type": "integer"
+        },
+        "source_dataset": {
+          "description": "dataset the metadata came from, e.g. 'treeoflife-200m'",
+          "title": "Source Dataset",
+          "type": "string"
+        },
+        "source_dataset_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "git sha / snapshot date of the source dataset",
+          "title": "Source Dataset Revision"
+        },
+        "source_provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "upstream provider, e.g. 'gbif', 'eol', 'inaturalist'",
+          "title": "Source Provider"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "provider record id (gbifID, observation id, ...)",
+          "title": "Source Id"
+        },
+        "observation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "groups images of the same individual/occurrence; use for split grouping",
+          "title": "Observation Id"
+        },
+        "source_url": {
+          "description": "URL the image bytes were downloaded from",
+          "title": "Source Url",
+          "type": "string"
+        },
+        "original_label": {
+          "description": "scientific name as given by the source",
+          "title": "Original Label",
+          "type": "string"
+        },
+        "image_type": {
+          "$ref": "#/$defs/ImageType",
+          "default": "unknown"
+        },
+        "source_image_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "source's own image-type/organ label, verbatim",
+          "title": "Source Image Type"
+        },
+        "publisher": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publisher"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "license name as given by the source, e.g. 'CC BY 4.0'",
+          "title": "License"
+        },
+        "license_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "License Url"
+        },
+        "rights_holder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights Holder"
+        },
+        "file": {
+          "description": "path relative to dataset root",
+          "title": "File",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "bytes": {
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "format": {
+          "description": "PIL format name, e.g. 'JPEG'",
+          "title": "Format",
+          "type": "string"
+        },
+        "downloaded_at": {
+          "format": "date-time",
+          "title": "Downloaded At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "image_id",
+        "ncbi_taxid",
+        "source_dataset",
+        "source_url",
+        "original_label",
+        "file",
+        "sha256",
+        "bytes",
+        "width",
+        "height",
+        "format",
+        "downloaded_at"
+      ],
+      "title": "ImageRecord",
+      "type": "object"
+    },
+    "PairRecord": {
+      "additionalProperties": false,
+      "description": "Explicit image <-> genome pairing. Species-level supervision: every image of a\nspecies is paired with that species' reference assembly.",
+      "properties": {
+        "image_id": {
+          "title": "Image Id",
+          "type": "string"
+        },
+        "assembly_accession": {
+          "title": "Assembly Accession",
+          "type": "string"
+        },
+        "ncbi_taxid": {
+          "title": "Ncbi Taxid",
+          "type": "integer"
+        },
+        "pairing": {
+          "default": "species_reference",
+          "description": "'same_specimen' only when the sequence comes from the photographed individual (e.g. BIOSCAN)",
+          "enum": [
+            "species_reference",
+            "same_specimen"
+          ],
+          "title": "Pairing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "image_id",
+        "assembly_accession",
+        "ncbi_taxid"
+      ],
+      "title": "PairRecord",
+      "type": "object"
+    },
+    "SourceInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        },
+        "license_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "License Notes"
+        },
+        "accessed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accessed At"
+        }
+      },
+      "required": [
+        "name",
+        "url"
+      ],
+      "title": "SourceInfo",
+      "type": "object"
+    },
+    "TableInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "n_rows": {
+          "title": "N Rows",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "n_rows"
+      ],
+      "title": "TableInfo",
+      "type": "object"
+    },
+    "DatasetManifest": {
+      "additionalProperties": false,
+      "description": "``dataset.json`` at the dataset root.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "created_by": {
+          "default": "genes.jpg/src/datasets",
+          "title": "Created By",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceInfo"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "tables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TableInfo"
+          },
+          "propertyNames": {
+            "enum": [
+              "species",
+              "genomes",
+              "images",
+              "pairs"
+            ]
+          },
+          "title": "Tables",
+          "type": "object"
+        },
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "summary counts: n_species, n_genomes, n_images, n_pairs, genome_bytes, image_bytes",
+          "title": "Counts",
+          "type": "object"
+        },
+        "selection": {
+          "additionalProperties": true,
+          "description": "parameters used to select species/images (filters, caps, seeds)",
+          "title": "Selection",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "created_at",
+        "tables"
+      ],
+      "title": "DatasetManifest",
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "tol200m-mammals-smoke",
+  "version": "0.1.0",
+  "description": "Smoke test: 5 mammal species with NCBI RefSeq reference genomes and TreeOfLife-200M citizen-science photos, one order each (Carnivora, Artiodactyla, Rodentia, Monotremata, Cingulata).",
+  "root": "data/datasets/tol200m-mammals-smoke",
+  "species": [
+    "Vulpes vulpes",
+    "Odocoileus virginianus",
+    "Castor canadensis",
+    "Tachyglossus aculeatus",
+    "Dasypus novemcinctus"
+  ],
+  "genomes": {
+    "source": "ncbi_refseq",
+    "assembly_summary_snapshot": "data/datasets/_ncbi/assembly_summary_vertebrate_mammalian_refseq.txt",
+    "policy": "pick_best_assembly: reference genome > representative > other; Complete Genome > Chromosome > Scaffold > Contig; newest release",
+    "files": ["genomic.fna.gz", "assembly_report.txt", "md5checksums.txt"]
+  },
+  "images": {
+    "source": "treeoflife-200m",
+    "source_revision": "5f2dc493b3dc0e544438a04038ab15faa646b749",
+    "per_species": 50,
+    "seed": 0,
+    "image_types": ["Citizen Science"],
+    "exclude_basis_of_record": ["FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN", "MATERIAL_SAMPLE"],
+    "licenses": "cc_only",
+    "max_per_observation": 1,
+    "inat_size_variant": "large",
+    "min_side": 224
+  }
+}
