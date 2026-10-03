@@ -224,6 +224,7 @@ def prepare_records(
     val_frac: float = 0.2,
     seed: int = 0,
     genome_cache: str | Path | None = None,
+    workers: int = 8,
 ) -> Path:
     """Write <out_dir>/records.csv (model format) from a genome <-> image dataset.
 
@@ -234,9 +235,8 @@ def prepare_records(
     """
     dataset, out = Path(dataset).resolve(), Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    by_taxid = pack_dataset_genomes(
-        dataset, Path(genome_cache or dataset.parent / "_packed_genomes")
-    )
+    cache = Path(genome_cache or dataset.parent / "_packed_genomes")
+    by_taxid = pack_dataset_genomes(dataset, cache, workers=workers)
     species = {s["ncbi_taxid"]: s for s in _rows(dataset / "species.csv")}
     images = {i["image_id"]: i for i in _rows(dataset / "images.csv")}
     pairs = _rows(dataset / "pairs.csv")

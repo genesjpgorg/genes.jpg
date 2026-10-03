@@ -1,6 +1,7 @@
 import json
 import zlib
 
+import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch", reason="model tests need `uv sync --extra model`")
@@ -298,3 +299,41 @@ def test_bioclip_ranks_from_ncbi_species():
     assert bioclip_ranks(turtle) == ("Animalia", "Chordata", "Reptilia")
     fungus = row("Fungi", "Basidiomycota", "Agaricomycetes", [4751, 5204])
     assert bioclip_ranks(fungus) == ("Fungi", "Basidiomycota", "Agaricomycetes")
+
+
+def _toy_table():
+    """4 species in 2 genera of 1 family; species i's held-out centroid is basis vector i."""
+    names = [("A", "A a"), ("A", "A b"), ("B", "B c"), ("B", "B d")]
+    table = {}
+    for i, (g, sp) in enumerate(names):
+        rec = {"species": sp, "genus": g, "family": "F", "order": "O"}
+        table[str(i)] = {
+            "rec": rec,
+            "ranks": {"species": sp, "genus": g, "family": "F", "order": "O"},
+            "unseen": i == 3,
+            "held": torch.eye(8)[i],
+            "train": torch.eye(8)[i],
+        }
+    return table
+
+
+def test_evaluate_score_and_chance():
+    from genesjpg.evaluate import chance, score
+
+    table = _toy_table()
+    # species 3 answered with species 2's centroid: wrong species, right genus, family, order
+    m = score({"3": table["2"]["held"]}, table, k=2)
+    assert m["species_top1"] == 0.0 and m["genus_top1"] == 1.0 and m["family_top1"] == 1.0
+    assert score({"3": table["3"]["held"]}, table)["species_top1"] == 1.0
+    c = chance(["3"], table, k=2)
+    assert c["species_top1"] == 0.25 and c["genus_top1"] == 0.5 and c["family_top1"] == 1.0
+    assert abs(c["species_top2"] - 0.5) < 1e-9  # 1 matching of 4, two draws
+
+
+def test_kmer_profile_is_strand_independent():
+    from genesjpg.evaluate import kmer_profile
+
+    s = "ACGTTGCAAGGCTTAACCGGTATATCGNNACGGT" * 20
+    rc = s.translate(str.maketrans("ACGTN", "TGCAN"))[::-1]
+    assert np.allclose(kmer_profile([s], k=4), kmer_profile([rc], k=4))
+    assert abs(kmer_profile([s], k=4).sum() - 1) < 1e-9

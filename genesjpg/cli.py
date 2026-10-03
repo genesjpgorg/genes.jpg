@@ -55,6 +55,7 @@ def cmd_prepare(a):
         val_frac=a.val_frac,
         seed=a.seed,
         genome_cache=a.genome_cache,
+        workers=a.workers,
     )
 
 
@@ -261,6 +262,75 @@ def cmd_generate(a):
     print(f"saved {a.n} images to {out}")
 
 
+def cmd_evaluate(a):
+    """Score baselines and trained steps on held-out species; writes evaluation.json (see genesjpg.evaluate)."""
+    import csv
+
+    from . import evaluate as ev
+
+    root, ckpt = _paths(a.data)
+    recs, emb, index = _load(a.data)
+    table = ev.species_table(recs, emb, index)
+    tests = None
+    if (
+        root / "unseen_species.csv"
+    ).exists():  # optional taxid -> test-name map written with the split
+        with open(root / "unseen_species.csv", newline="") as f:
+            tests = {r["ncbi_taxid"]: r["test"] for r in csv.DictReader(f) if r.get("test")}
+    groups = ev.held_out_groups(table, tests)
+    targets = sorted({t for g in groups.values() for t in g})
+    genome = bool(next(iter(table.values()))["rec"].get("genome"))
+    methods: dict[str, dict] = {}
+    methods["chance"] = {g: ev.chance(ts, table) for g, ts in groups.items()}
+    if genome and "kmer_nn" in a.methods:
+        q, nearest = ev.kmer_nn_queries(table, targets)
+        methods["kmer_nn"] = {g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()}
+        (root / "kmer_nearest.json").write_text(
+            json.dumps(
+                {
+                    table[t]["ranks"]["species"]: table[n]["ranks"]["species"]
+                    for t, n in nearest.items()
+                },
+                indent=1,
+            )
+        )
+    if "captions" in a.methods:
+        from .encoders import BioCLIP
+
+        clip = BioCLIP(device=a.device)
+        for rank in ev.RANKS:
+            q = ev.caption_queries(table, targets, clip, rank)
+            methods[f"caption_{rank}"] = {
+                g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
+            }
+        del clip
+    if genome and "frozen_linear" in a.methods:
+        q = ev.frozen_linear_queries(table, targets, a.device)
+        methods["frozen_linear"] = {
+            g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
+        }
+    if (ckpt / "align.pt").exists() and "model" in a.methods:
+        from .pipeline import load_align, load_prior
+
+        align = load_align(ckpt / "align.pt").to(a.device)
+        prior = load_prior(ckpt / "prior.pt").to(a.device) if (ckpt / "prior.pt").exists() else None
+        aligned, sampled = ev.model_queries(table, targets, align, prior)
+        methods["aligned"] = {
+            g: ev.score({t: aligned[t] for t in ts}, table) for g, ts in groups.items()
+        }
+        if sampled:
+            methods["prior"] = {
+                g: ev.score({t: sampled[t] for t in ts}, table) for g, ts in groups.items()
+            }
+    out = {"groups": {g: len(ts) for g, ts in groups.items()}, "methods": methods}
+    (root / "evaluation.json").write_text(json.dumps(out, indent=2))
+    cols = [f"{r}_top1" for r in ev.RANKS]
+    for g, n in out["groups"].items():
+        print(f"\n{g} ({n} species): top-1 at " + " / ".join(ev.RANKS))
+        for m, res in methods.items():
+            print(f"  {m:16s} " + "  ".join(f"{res[g][c]:.2f}" for c in cols))
+
+
 def main(argv=None):
     """Parse arguments and run one pipeline command."""
     p = argparse.ArgumentParser(prog="genesjpg")
@@ -282,6 +352,7 @@ def main(argv=None):
         "--unseen", type=int, nargs="*", default=[], help="species taxids held out as val_unseen"
     )
     s.add_argument("--val-frac", type=float, default=0.2)
+    s.add_argument("--workers", type=int, default=8, help="parallel genome packing processes")
     s.add_argument(
         "--genome-cache",
         default=None,
@@ -331,6 +402,15 @@ def main(argv=None):
     s.add_argument("--max-steps", type=int, default=None)
     s.add_argument("--include-unseen", action="store_true", help="also train on val_unseen photos")
     s.set_defaults(fn=cmd_train_decoder)
+
+    s = sub.add_parser("evaluate")
+    s.add_argument(
+        "--methods",
+        nargs="*",
+        default=["kmer_nn", "captions", "frozen_linear", "model"],
+        help="chance always runs",
+    )
+    s.set_defaults(fn=cmd_evaluate)
 
     s = sub.add_parser("generate")
     g = s.add_mutually_exclusive_group(required=True)
