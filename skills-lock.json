@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "amass-api": {
+      "source": "amass-technologies/public-skills",
+      "sourceType": "github",
+      "skillPath": "skills/amass-api/SKILL.md",
+      "computedHash": "45b0b81d530914e7866ed4468e843b3e4ad4c3707550bc209c363193aa102cec"
+    }
+  }
+}
