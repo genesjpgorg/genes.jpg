@@ -99,12 +99,20 @@ class GenomeToImage:
         """Aligned, unit-norm DNA embeddings (len(seqs), 512)."""
         return self.align.dna.encode(seqs).to(self.device)
 
+    def _query(self, dna) -> torch.Tensor:
+        """(1, 512) embedding of a DNA string or of a ``PackedGenome`` (mean over fixed windows)."""
+        from .genomes import PackedGenome, embed_genome
+
+        if isinstance(dna, PackedGenome):
+            return embed_genome(self.align.dna, dna)[None].to(self.device)
+        return self.embed_dna([dna])
+
     def image_embeddings(
         self, seq: str, n: int = 1, steps: int = 50, guidance: float = 2.0, seed: int = 0
     ):
-        """Sample ``n`` plausible BioCLIP image embeddings for one barcode with the prior."""
+        """Sample ``n`` plausible BioCLIP image embeddings for one barcode or genome with the prior."""
         g = torch.Generator(device=self.device).manual_seed(seed)
-        cond = self.embed_dna([seq]).repeat(n, 1)
+        cond = self._query(seq).repeat(n, 1)
         return self.prior.sample(cond, steps=steps, guidance=guidance, generator=g)
 
     def retrieve(self, seq: str, k: int = 5) -> list[tuple[dict, float]]:
@@ -112,14 +120,14 @@ class GenomeToImage:
         if self.gallery is None:
             raise ValueError("no gallery loaded")
         emb, records = self.gallery
-        sims = (self.embed_dna([seq]).cpu() @ emb.T)[0]
+        sims = (self._query(seq).cpu() @ emb.T)[0]
         top = sims.topk(min(k, len(records)))
         return [(records[i], s) for s, i in zip(top.values.tolist(), top.indices.tolist())]
 
     def generate(
         self, seq: str, n: int = 1, seed: int = 0, steps: int = 30, guidance: float = 5.0, size=None
     ):
-        """Generate ``n`` images for one barcode: prior samples ``n`` image embeddings, decoder renders each."""
+        """Generate ``n`` images for one barcode or ``PackedGenome``: prior samples ``n`` image embeddings, decoder renders each."""
         if self.decoder is None:
             raise ValueError("no decoder checkpoint loaded")
         emb = self.image_embeddings(seq, n=n, seed=seed)

@@ -75,7 +75,7 @@ def retrieval_metrics(
 
 def train_align(
     model: AlignModel,
-    seqs: list[str],
+    seqs: list[str] | None,
     labels: list[str],
     img_emb: torch.Tensor,
     txt_emb: torch.Tensor,
@@ -87,12 +87,15 @@ def train_align(
     eval_fn=None,
     device: str = "cpu",
     seed: int = 0,
+    sample_dna=None,
 ) -> AlignModel:
     """Fine-tune the DNA encoder against precomputed BioCLIP embeddings.
 
     Loss = InfoNCE(DNA, image) + ``text_weight`` * InfoNCE(DNA, taxonomy text), label-aware on ``labels``.
     The pretrained backbone uses ``lr``; the freshly initialised head and temperature use ``head_lr``.
     ``eval_fn(model) -> dict`` is called after every epoch and its metrics are printed.
+    DNA is either fixed (``seqs``, tokenised once) or drawn anew for every batch by
+    ``sample_dna(indices) -> list[str]`` (e.g. random genome windows), in which case ``seqs`` is ignored.
     """
     model.to(device).train()
     head = [*model.dna.head.parameters(), model.logit_scale]
@@ -103,8 +106,9 @@ def train_align(
     )
     label_ids = {lab: i for i, lab in enumerate(sorted(set(labels)))}
     y = torch.tensor([label_ids[lab] for lab in labels])
-    ids, mask = model.dna.tokenizer(seqs)
-    order = list(range(len(seqs)))
+    if sample_dna is None:
+        ids, mask = model.dna.tokenizer(seqs)
+    order = list(range(len(labels)))
     rng = random.Random(seed)
     for epoch in range(epochs):
         model.train()
@@ -114,8 +118,14 @@ def train_align(
             b = torch.tensor(order[i : i + batch_size])
             if len(b) < 2:
                 continue
-            width = int(mask[b].sum(1).max())  # trim padding to the longest sequence in this batch
-            dna = model(ids[b, :width].to(device), mask[b, :width].to(device))
+            if sample_dna is None:
+                width = int(
+                    mask[b].sum(1).max()
+                )  # trim padding to the longest sequence in the batch
+                bi, bm = ids[b, :width], mask[b, :width]
+            else:
+                bi, bm = model.dna.tokenizer(sample_dna(b.tolist()))
+            dna = model(bi.to(device), bm.to(device))
             yb = y[b].to(device)
             loss = contrastive_loss(dna, img_emb[b].to(device), model.logit_scale, yb)
             if text_weight:

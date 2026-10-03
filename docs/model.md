@@ -25,6 +25,28 @@ COI barcode ─► [1] ModernGENA ─► [2] aligned DNA emb ─► [3] diffusio
 images in contiguous blocks of zip entries): `train` split for training, `val` (seen species) and `val_unseen`
 (species absent from training) for evaluation. Records keep only specimens with a barcode and at least a genus label.
 
+### Genome datasets
+
+`python -m genesjpg --data RUN prepare --dataset DATASET_DIR [--unseen TAXID ...]` writes `records.csv` from a
+dataset built by `genes-datasets` (species/genomes/images/pairs tables), pairing every image with its species'
+DNA. Species given with `--unseen` become `val_unseen`; `--val-frac` of the other species' images become `val`.
+
+- `--dna genome` (default): each assembly is packed once into `<dataset>/../_packed_genomes/<accession>/`
+  (`sequence.u8`, upper-case ACGTN, plus `index.json`), **nuclear sequences only** (the assembly report's
+  non-nuclear molecules and any `mitochondrion` FASTA record are dropped). Alignment training draws a fresh random
+  10 kb window per image per batch (no window crosses a sequence boundary or has > 1% N), which the tokenizer
+  truncates to ModernGENA's 1024-token context (~6.3 kb on mammal DNA). For evaluation, the prior and generation, a
+  genome is embedded as the re-normalised mean of 32 fixed (seeded) windows. Code: `genesjpg/genomes.py`.
+- `--dna barcode`: the COI Folmer region (658 bp in mammals) from NCBI's annotation of the species' mitochondrial
+  genome, or found by primer-site search when the mitochondrion is unannotated; provenance in `barcodes.csv`.
+
+Smoke test on `tol200m-mammals-smoke` (2026-10-03, one RTX PRO 6000; 4 training species, armadillo held out):
+alignment reaches species top-1 = 1.0 on seen-species `val` by epoch 15 (genome) vs 3 (barcode); a single 6 kb
+window identifies the species 254/256 times; 13/16 generated images of seen species are classified correctly by
+BioCLIP (14/16 with barcodes); the unseen species fails in both modes (4 training species cannot generalise).
+With one held-out species the `val_unseen` species metrics are trivially 1.0; evaluate unseen species against a
+gallery that also contains seen species.
+
 ## Run
 
 ```bash
@@ -49,5 +71,6 @@ between sampled and true image embeddings. Checkpoints and `*_metrics.json` go t
 ## Not yet done
 
 - Decoder has not been trained (no GPU). Planned: train on all BIOSCAN-5M images, then add iNaturalist/TreeOfLife-10M.
-- Whole-genome input: swap `DNAEncoder` for a long-context model (HyenaDNA / Caduceus).
+- Whole-genome input beyond window averaging: a long-context model (HyenaDNA / Caduceus) or learned pooling over
+  many windows.
 - FID/KID and BioCLIP zero-shot species accuracy on generated images.

@@ -1,6 +1,6 @@
 """Command line: python -m genesjpg <command> --data DIR ...
 
-Stages: download -> embed -> train-align -> train-prior -> train-decoder -> generate.
+Stages: download (BIOSCAN-5M) or prepare (a genes.jpg genome <-> image dataset) -> embed -> train-align -> train-prior -> train-decoder -> generate.
 """
 
 from __future__ import annotations
@@ -43,6 +43,21 @@ def cmd_download(a):
     download_subset(a.data, n_train=a.n_train, n_eval=a.n_eval, n_blocks=a.n_blocks)
 
 
+def cmd_prepare(a):
+    """Write records.csv into --data from a genome <-> image dataset (nuclear genome or COI barcode)."""
+    from .genomes import prepare_records
+
+    prepare_records(
+        a.dataset,
+        a.data,
+        unseen=a.unseen,
+        val_frac=a.val_frac,
+        seed=a.seed,
+        dna=a.dna,
+        genome_cache=a.genome_cache,
+    )
+
+
 def cmd_embed(a):
     """Compute frozen BioCLIP embeddings for every image and its taxonomy caption -> embeddings.pt."""
     from .encoders import BioCLIP
@@ -71,6 +86,7 @@ def cmd_train_align(a):
     """Steps 1-2: fine-tune ModernGENA against BioCLIP embeddings; writes align.pt + align_metrics.json."""
     from .align import AlignModel, retrieval_metrics, train_align
     from .encoders import DNAEncoder
+    from .genomes import embed_records, window_sampler
     from .pipeline import save_align
 
     _, ckpt = _paths(a.data)
@@ -83,14 +99,15 @@ def cmd_train_align(a):
         out = {}
         for s, (rs, im, _) in evals.items():
             if rs:
-                q = m.dna.encode([r["dna_barcode"] for r in rs])
+                q = embed_records(m.dna, rs)
                 met = retrieval_metrics(q, im, [label(r) for r in rs], [r["genus"] for r in rs])
                 out.update({f"{s}/{k}": v for k, v in met.items()})
         return out
 
+    genome = bool(train[0].get("genome"))  # genome mode: fresh random windows every batch
     train_align(
         model,
-        [r["dna_barcode"] for r in train],
+        None if genome else [r["dna_barcode"] for r in train],
         [label(r) for r in train],
         img,
         txt,
@@ -100,6 +117,7 @@ def cmd_train_align(a):
         text_weight=a.text_weight,
         eval_fn=eval_fn,
         device=a.device,
+        sample_dna=window_sampler(train) if genome else None,
     )
     save_align(model.cpu(), ckpt / "align.pt")
     metrics = eval_fn(model)
@@ -110,6 +128,7 @@ def cmd_train_align(a):
 def cmd_train_prior(a):
     """Step 3: train the diffusion prior on (aligned DNA emb, image emb) pairs; writes prior.pt."""
     from .align import retrieval_metrics
+    from .genomes import embed_records
     from .pipeline import load_align, save_prior
     from .prior import DiffusionPrior, train_prior
 
@@ -117,11 +136,11 @@ def cmd_train_prior(a):
     recs, emb, index = _load(a.data)
     align = load_align(ckpt / "align.pt").to(a.device)
     train, img, _ = _split(recs, emb, index, "train")
-    cond = align.dna.encode([r["dna_barcode"] for r in train])
+    cond = embed_records(align.dna, train)
     evals = {}
     for s, (rs, im, _) in _eval_sets(recs, emb, index).items():
         if rs:
-            q = align.dna.encode([r["dna_barcode"] for r in rs])
+            q = embed_records(align.dna, rs)
             evals[s] = (q, im, [label(r) for r in rs], [r["genus"] for r in rs])
             base = retrieval_metrics(q, im, evals[s][2], evals[s][3])
             print(f"{s} baseline (aligned DNA emb, no prior): {base}")
@@ -182,6 +201,7 @@ def cmd_train_decoder(a):
 
 def cmd_generate(a):
     """Print the nearest real specimens for a barcode and, if decoder.pt exists, save generated images."""
+    from .genomes import PackedGenome
     from .pipeline import GenomeToImage
 
     root, ckpt = _paths(a.data)
@@ -191,7 +211,7 @@ def cmd_generate(a):
         rec = next((r for r in recs if r["processid"] == a.processid), None)
         if rec is None:
             raise SystemExit(f"processid {a.processid!r} not found in records.csv")
-        seq = rec["dna_barcode"]
+        seq = PackedGenome(rec["genome"]) if rec.get("genome") else rec["dna_barcode"]
         print(f"{a.processid}: true label {label(rec)}")
     by_id = {r["processid"]: r for r in recs}
     gallery = (emb["image"], [by_id[pid] for pid in emb["processid"]])
@@ -225,6 +245,23 @@ def main(argv=None):
     s.add_argument("--n-eval", type=int, default=3000)
     s.add_argument("--n-blocks", type=int, default=20)
     s.set_defaults(fn=cmd_download)
+
+    s = sub.add_parser("prepare")
+    s.add_argument(
+        "--dataset", required=True, help="built dataset dir (species/genomes/images/pairs.csv)"
+    )
+    s.add_argument(
+        "--unseen", type=int, nargs="*", default=[], help="species taxids held out as val_unseen"
+    )
+    s.add_argument("--val-frac", type=float, default=0.2)
+    s.add_argument("--dna", choices=["genome", "barcode"], default="genome")
+    s.add_argument(
+        "--genome-cache",
+        default=None,
+        help="packed genomes dir (default: <dataset>/../_packed_genomes)",
+    )
+    s.add_argument("--seed", type=int, default=0)
+    s.set_defaults(fn=cmd_prepare)
 
     s = sub.add_parser("embed")
     s.add_argument("--batch-size", type=int, default=64)

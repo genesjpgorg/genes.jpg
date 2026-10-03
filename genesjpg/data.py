@@ -190,7 +190,17 @@ def taxonomy_text(r: dict) -> str:
     """Taxonomic caption in BioCLIP's 'a photo of <taxonomy>' style."""
     names = [r.get(k, "").strip() for k in TAXONOMY]
     names = [n for n in names if n and n.lower() != "not_classified"]
-    return "a photo of " + " ".join(["Animalia Arthropoda Insecta", *names])
+    genus, species = r.get("genus", "").strip(), r.get("species", "").strip()
+    if genus and species.startswith(genus + " "):
+        names[-1] = species[
+            len(genus) + 1 :
+        ]  # BioCLIP style: "... Genus epithet", genus not repeated
+    # BIOSCAN records carry no ranks above order; other datasets add kingdom/phylum/class columns
+    higher = [
+        r.get(k) or d
+        for k, d in (("kingdom", "Animalia"), ("phylum", "Arthropoda"), ("class", "Insecta"))
+    ]
+    return "a photo of " + " ".join([*higher, *names])
 
 
 def label(r: dict) -> str:

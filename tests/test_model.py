@@ -152,3 +152,85 @@ def test_stream_metadata_keeps_last_row_without_newline(monkeypatch):
     monkeypatch.setattr(data.requests, "get", lambda *a, **kw: FakeResponse(None))
     rows = data._stream_metadata({"A1", "B2"})
     assert rows["B2"]["genus"] == "Bus" and rows["A1"]["genus"] == "Aus"
+
+
+def test_taxonomy_text_uses_record_lineage():
+    rec = {
+        "kingdom": "Animalia",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "order": "Carnivora",
+        "family": "Canidae",
+        "subfamily": "",
+        "genus": "Vulpes",
+        "species": "Vulpes vulpes",
+    }
+    assert (
+        taxonomy_text(rec)
+        == "a photo of Animalia Chordata Mammalia Carnivora Canidae Vulpes vulpes"
+    )
+
+
+def test_folmer_barcode():
+    from genesjpg.genomes import HCO2198, LCO1490, _revcomp, folmer_barcode
+
+    inner = "ACGT" * 164 + "AC"
+    assert folmer_barcode("AAA" + LCO1490 + inner + _revcomp(HCO2198) + "TTT") == inner
+
+
+def _fake_assembly(tmp_path, rng):
+    """Gzipped FASTA with two nuclear chromosomes, one short scaffold and a mitochondrion."""
+    import gzip
+    import random
+
+    rng = random.Random(rng)
+    chroms = {
+        n: "".join(rng.choice("ACGTacgt") for _ in range(L))
+        for n, L in [("NC_1.1", 30_000), ("NC_2.1", 25_000), ("NW_3.1", 500), ("NC_MT.1", 16_000)]
+    }
+    fa = tmp_path / "x_genomic.fna.gz"
+    with gzip.open(fa, "wt") as f:
+        for n, s in chroms.items():
+            f.write(f">{n} Some species {'mitochondrion' if n == 'NC_MT.1' else 'chromosome'}\n")
+            f.writelines(s[i : i + 80] + "\n" for i in range(0, len(s), 80))
+    report = tmp_path / "x_assembly_report.txt"
+    rows = [
+        ["1", "assembled-molecule", "1", "Chromosome", "CM1.1", "=", "NC_1.1", "Primary Assembly"],
+        ["2", "assembled-molecule", "2", "Chromosome", "CM2.1", "=", "NC_2.1", "Primary Assembly"],
+        ["u", "unplaced-scaffold", "na", "na", "JA3.1", "=", "NW_3.1", "Primary Assembly"],
+        ["MT", "assembled-molecule", "MT", "Mitochondrion", "na", "<>", "NC_MT.1", "non-nuclear"],
+    ]
+    report.write_text("# Sequence-Name\tetc\n" + "".join("\t".join(r) + "\n" for r in rows))
+    return fa, report, chroms
+
+
+def test_pack_genome_nuclear_only_and_windows(tmp_path):
+    from genesjpg.genomes import PackedGenome, pack_genome
+
+    fa, report, chroms = _fake_assembly(tmp_path, 0)
+    out = pack_genome(fa, report, tmp_path / "packed")
+    g = PackedGenome(out, window=10_000)
+    nuclear = {n: s.upper() for n, s in chroms.items() if n != "NC_MT.1"}
+    assert g.seq.size == sum(map(len, nuclear.values()))
+    assert len(g.spans) == 2  # the 500 bp scaffold is shorter than a window
+    w = g.windows(8)
+    assert w == PackedGenome(out, window=10_000).windows(8)  # fixed windows are deterministic
+    assert all(len(x) == 10_000 and any(x in s for s in nuclear.values()) for x in w)
+    assert not any(x in chroms["NC_MT.1"].upper() for x in w)
+
+
+def test_alignment_trains_on_sampled_windows():
+    torch.manual_seed(0)
+    recs = synthetic_records(48, n_species=4, seq_len=300)
+    img = _species_embeddings(recs)
+    model = AlignModel(DNAEncoder.tiny())
+    labels = [label(r) for r in recs]
+    calls = []
+
+    def sample(idx):  # a random 200 bp slice of each record's sequence
+        calls.append(len(idx))
+        g = torch.randint(0, 100, (1,)).item()
+        return [recs[i]["dna_barcode"][g : g + 200] for i in idx]
+
+    train_align(model, None, labels, img, img, epochs=2, batch_size=16, sample_dna=sample)
+    assert calls == [16, 16, 16] * 2

@@ -15,7 +15,9 @@ a photo, retrieve the matching genome. The repository has two parts:
 Status (2026-10-03): model steps 1–3 are implemented and tested with tiny models; they have not been trained on real
 data with ModernGENA yet, and the Stable Diffusion decoder is untrained (no GPU). The dataset pipeline is in place and
 `tol200m-mammals-smoke` (5 RefSeq genomes, 250 images, 250 pairs) has been built, validated and independently audited.
-The model does not yet consume the pipeline's genome datasets.
+`python -m genesjpg prepare` feeds a built dataset to the model, either as random 1024-token windows of each species'
+nuclear genome (default) or as its COI barcode; the full pipeline has been smoke-tested on `tol200m-mammals-smoke`
+(see [docs/model.md](docs/model.md#genome-datasets)).
 
 ## Architecture
 
