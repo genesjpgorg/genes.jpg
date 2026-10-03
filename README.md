@@ -1,23 +1,77 @@
 # genes.jpg
 
-Datasets and models for **genome ↔ organism image** learning: given a species' reference
-genome, predict what the organism looks like; given a photo, retrieve the matching genome.
+> Generate an image of a species from its DNA.
 
-Status (2026-10-03): the dataset pipeline is in place and a first 5-species mammal dataset
-(`tol200m-mammals-smoke`: 5 RefSeq genomes, 250 images, 250 pairs) has been built, validated
-and independently audited. Model code has not started.
+Datasets and models for **genome ↔ organism image** learning: given DNA, predict what the organism looks like; given
+a photo, retrieve the matching genome. The repository has two parts:
+
+- **Model** (`genesjpg/`): a DNA barcode (the ~650 bp mitochondrial COI region used to identify animal species) →
+  image model, trained first on insects from [BIOSCAN-5M](https://huggingface.co/datasets/bioscan-ml/BIOSCAN-5M),
+  where every specimen has both a barcode and a photo.
+- **Dataset pipeline** (`src/datasets/`, CLI `genes-datasets`): builds validated species-level datasets that pair
+  NCBI RefSeq reference genomes with licensed organism photos; the first is a 5-species mammal smoke dataset
+  (`tol200m-mammals-smoke`).
+
+Status (2026-10-03): model steps 1–3 are implemented and tested with tiny models; they have not been trained on real
+data with ModernGENA yet, and the Stable Diffusion decoder is untrained (no GPU). The dataset pipeline is in place and
+`tol200m-mammals-smoke` (5 RefSeq genomes, 250 images, 250 pairs) has been built, validated and independently audited.
+The model does not yet consume the pipeline's genome datasets.
+
+## Architecture
+
+No published model generates whole-organism images from DNA, so the design combines three approaches (literature
+review: [docs/architectures.md](docs/architectures.md)):
+
+- **Difface**: first align DNA and images in a shared embedding space, then generate with diffusion.
+- **CLIBD / BioCLIP**: contrastive DNA–image–taxonomy space for biodiversity data.
+- **unCLIP (DALL-E 2)**: a *prior* that samples an image embedding from the condition, and a *decoder* that renders
+  an image from that embedding.
+
+```
+                 ┌──────────────────────── trained on paired DNA + photo ────────────────────────┐
+COI barcode ──► [1] DNA encoder ──► [2] aligned DNA embedding ──► [3] diffusion prior ──► BioCLIP image embedding
+                 ModernGENA            (512-d, BioCLIP space)        samples one plausible           │
+                                              │                      image embedding                 │
+                                              │                                                      ▼
+                                              └──► retrieval baseline:                 [4] decoder: Stable Diffusion
+                                                   nearest real photos                 conditioned on the embedding
+                                                                                       (trained on photos only)
+                                                                                                     │
+                                                                                                     ▼
+                                                                                                   image
+```
+
+| Step | What it does | Model | Trained? | Code |
+|---|---|---|---|---|
+| 1. DNA encoder | Turns a barcode into a vector: tokenise, run the transformer, mean-pool, project to 512-d with an MLP | [ModernGENA](https://huggingface.co/AIRI-Institute/moderngena-base), 22-layer ModernBERT DNA LM, 135M params, 32k BPE tokens (~107 per barcode) | fine-tuned in step 2 | `genesjpg/encoders.py` `DNAEncoder` |
+| 2. Alignment | Pulls each DNA vector next to the frozen [BioCLIP](https://huggingface.co/imageomics/bioclip) embedding of the same specimen's photo, plus (weight 0.5) the embedding of its taxonomy caption, e.g. *"a photo of Animalia Arthropoda Insecta Coleoptera Latridiidae Cortinicara gibbosa"*. Label-aware InfoNCE: specimens of the same species in a batch are all positives | DNA encoder + learned temperature; BioCLIP frozen | yes, CPU | `genesjpg/align.py` |
+| 3. Prior | One barcode fits many photos (pose, sex, life stage), so instead of regressing an average it *samples* a BioCLIP image embedding given the DNA embedding | MLP diffusion model, x0-prediction, cosine schedule, classifier-free guidance, DDIM sampling | yes, CPU | `genesjpg/prior.py` `DiffusionPrior` |
+| 4. Decoder | Renders an image from a BioCLIP image embedding, which is projected to 8 cross-attention tokens that replace the text prompt (IP-Adapter style) | Stable Diffusion 1.5 (frozen VAE + UNet) + `EmbeddingProjector`; optional UNet fine-tune | needs a GPU | `genesjpg/decoder.py` `EmbeddingDecoder` |
+
+`genesjpg/pipeline.py` `GenomeToImage` chains all four steps for inference.
+
+**Why this split**
+- **The decoder never sees DNA.** It learns *image embedding → picture* from any species photos, so it can later use
+  much larger image-only collections (iNaturalist, TreeOfLife-10M). Only steps 1–3, which are small, need the scarcer
+  DNA–photo pairs.
+- **There is a baseline before generation.** After step 2, *DNA → nearest real photos* already works on CPU.
+- **Each step is evaluated on its own:**
+  - retrieval accuracy for step 2;
+  - how close sampled embeddings are to the real ones for step 3;
+  - image quality and species accuracy for step 4.
+  The `val_unseen` split holds species absent from training.
 
 ## Layout
 
 ```
-configs/                    build configs, one JSON per dataset (configs/tol200m-mammals-smoke.json)
-docs/
-  creating_datasets.md      how to build a dataset, config reference, what the smoke dataset contains
-  dataset_schema.md         the dataset format: tables, fields, design decisions
-  survey_mammals.md         why TreeOfLife-200M is the first image source (measured survey)
-  datasets.md               literature/resource survey of genome, image and phenotype datasets
-  audits/                   independent audits of built datasets
-schemas/dataset.schema.json JSON Schema of the dataset format (generated; do not edit by hand)
+genesjpg/                   DNA -> image model
+  data.py                   BIOSCAN-5M subset download (HTTP range requests into the remote zips), records, captions
+  encoders.py               step 1: ModernGENA DNAEncoder + HFTokenizer; frozen BioCLIP image/text towers
+  align.py                  step 2: contrastive loss, AlignModel, train_align, retrieval_metrics
+  prior.py                  step 3: DiffusionPrior, train_prior
+  decoder.py                step 4: EmbeddingProjector, EmbeddingDecoder, train_decoder
+  pipeline.py               GenomeToImage (end-to-end inference, retrieval) + checkpoint helpers
+  cli.py                    `python -m genesjpg <command>`
 src/datasets/               the `datasets` package (console script: genes-datasets)
   schema.py                 pydantic record models: SpeciesRecord, GenomeRecord, ImageRecord,
                             PairRecord, DatasetManifest, SourceInfo (the contract; versioned)
@@ -30,24 +84,37 @@ src/datasets/               the `datasets` package (console script: genes-datase
   sources/base.py           ImageSource protocol + ImageCandidate (what a new image source implements)
   sources/treeoflife200m.py TreeOfLife-200M source (DuckDB over catalog + provenance parquets)
   cli.py                    typer app: build, validate, info, schema-export
+configs/                    dataset build configs, one JSON per dataset (configs/tol200m-mammals-smoke.json)
+schemas/dataset.schema.json JSON Schema of the dataset format (generated; do not edit by hand)
 scripts/e2e_tiny_dataset.py end-to-end exercise of ncbi/images/manifest on a tiny dataset
-tests/                      pytest suite; tests marked `network` hit NCBI/GBIF/image hosts
+tests/                      pytest suite: test_model.py (model, tiny random models) + dataset tests
+                            (tests marked `network` hit NCBI/GBIF/image hosts)
+docs/
+  model.md                  model details, run steps, metrics
+  architectures.md          literature review behind the model architecture
+  datasets.md               literature/resource survey of genome, image and phenotype datasets
+  creating_datasets.md      how to build a dataset, config reference, what the smoke dataset contains
+  dataset_schema.md         the dataset format: tables, fields, design decisions
+  survey_mammals.md         why TreeOfLife-200M is the first image source (measured survey)
+  audits/                   independent audits of built datasets
+modal_app.py                Modal entrypoints for the model (CPU stages + GPU decoder/generation)
+.agents/skills/             Amass API skill used for the literature/dataset research
 data/datasets -> /mnt/filesystem-s8/genes.jpg/datasets   shared disk, git-ignored (see Setup)
-modal_app.py                Modal GPU entrypoint (placeholder for training)
 ```
 
 ## Setup
 
 ```bash
 git clone https://github.com/genesjpgorg/genes.jpg.git && cd genes.jpg
-~/.local/bin/uv sync                      # Python 3.12 env in .venv, incl. dev tools (pytest, ruff)
+~/.local/bin/uv sync                      # Python 3.12 env in .venv: dataset pipeline + dev tools (pytest, ruff)
+~/.local/bin/uv sync --extra model        # also install the model stack (torch, transformers, diffusers, open_clip)
 
 # Large artefacts (raw source metadata, genomes, images) live on the shared disk, outside git.
 mkdir -p /mnt/filesystem-s8/genes.jpg/datasets data
 ln -s /mnt/filesystem-s8/genes.jpg/datasets data/datasets
 
-.venv/bin/python -m pytest -q             # 175 tests, ~1 min; add -m "not network" to stay offline
-.venv/bin/ruff check src tests scripts && .venv/bin/ruff format --check src tests scripts
+.venv/bin/python -m pytest -q             # add -m "not network" to stay offline; model tests skip without --extra model
+.venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
 `uv` and `uvx` are installed in `~/.local/bin`. The NCBI Datasets API needs no key; set
@@ -55,6 +122,35 @@ ln -s /mnt/filesystem-s8/genes.jpg/datasets data/datasets
 0.5 GB `mammalia_*.parquet` subsets the source reads by default) is already on the shared
 disk; the one-off commands to recreate it are in
 [docs/creating_datasets.md](docs/creating_datasets.md#source-metadata-treeoflife-200m).
+
+## Model pipeline
+
+Every command reads and writes under `--data` (records, images, `embeddings.pt`, `checkpoints/`).
+
+```bash
+python -m genesjpg --data data download --n-train 20000 --n-eval 3000   # paired BIOSCAN-5M subset
+python -m genesjpg --data data embed                                    # frozen BioCLIP image + caption embeddings
+python -m genesjpg --data data train-align --epochs 5                   # steps 1-2 (CPU; --freeze-layers N to speed up)
+python -m genesjpg --data data train-prior --epochs 50                  # step 3 (CPU)
+python -m genesjpg --data data train-decoder --max-steps 2000           # step 4 (GPU)
+python -m genesjpg --data data generate --processid <BOLD processid>    # nearest photos (+ images if decoder.pt exists)
+```
+
+From Python:
+
+```python
+from genesjpg.pipeline import GenomeToImage
+
+model = GenomeToImage.from_checkpoints("data/checkpoints", gallery=(image_embeddings, records))
+model.retrieve(barcode, k=5)  # [(record, cosine similarity), ...]
+images = model.generate(barcode, n=4)  # list of PIL images (needs decoder.pt)
+```
+
+### Modal
+
+`modal run modal_app.py` runs data prep and steps 1–3 on CPU, using the `genes-jpg-data` Volume.
+`modal run modal_app.py::train_decoder` and `::generate` need a GPU, which requires a payment method on the Modal
+workspace.
 
 ## Dataset format
 
@@ -172,23 +268,27 @@ measured in [docs/survey_mammals.md](docs/survey_mammals.md).
 
 ## Next
 
-- Scale the config to all ~250 RefSeq mammals with hundreds of images each
-  (`data/datasets/_survey/treeoflife-200m/refseq_intersect.csv` lists them with per-type image
-  counts); ~0.4 MB per `large` image, ~0.8 GB per genome.
-- Match catalog names by NCBI taxid with synonym resolution instead of exact binomials
-  (recovers ~14 RefSeq species such as *Neogale vison* / *Neovison vison*).
-- Add an image-content filter at candidate selection (live animal vs. sign/tracks/remains).
-- Assign species-held-out splits (`species.split`), then genus/family-held-out.
-- Start on genome-conditioned image models; baselines are listed in
-  [docs/datasets.md](docs/datasets.md).
-
-## Modal
-
-`modal_app.py` is a placeholder GPU entrypoint (`modal run modal_app.py` runs a CUDA check,
-`::train` writes stub checkpoints to the `genes-jpg-data` volume). It is not wired to the
-datasets yet; auth via `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`.
+- Model:
+  - train steps 1–3 with ModernGENA, then the decoder once a GPU is available;
+  - add a standalone evaluation command, DNA-similarity/taxonomy baselines, and generated-image metrics
+    (FID/KID, BioCLIP species accuracy);
+  - whole-genome conditioning on the pipeline's RefSeq genomes via a long-context DNA model.
+- Datasets:
+  - scale the config to all ~250 RefSeq mammals with hundreds of images each
+    (`data/datasets/_survey/treeoflife-200m/refseq_intersect.csv` lists them with per-type image counts);
+    ~0.4 MB per `large` image, ~0.8 GB per genome;
+  - match catalog names by NCBI taxid with synonym resolution instead of exact binomials
+    (recovers ~14 RefSeq species such as *Neogale vison* / *Neovison vison*);
+  - add an image-content filter at candidate selection (live animal vs. sign/tracks/remains);
+  - assign species-held-out splits (`species.split`), then genus/family-held-out.
 
 ## Contributing
 
-Branch from `main`, keep `pytest` and `ruff check` / `ruff format --check` clean, keep
-behaviour deterministic (seeded) and record provenance in `dataset.json`, open a pull request.
+1. Branch from `main`.
+2. Keep `pytest`, `ruff check` and `ruff format --check` clean.
+3. Keep dataset builds deterministic (seeded), with provenance recorded in `dataset.json`.
+4. Open a pull request.
+
+## License
+
+Code license to be decided. Data licences are per source/image; see Licensing above.
