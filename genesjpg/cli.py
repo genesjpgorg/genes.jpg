@@ -136,7 +136,8 @@ def cmd_train_align(a):
         text_weight=a.text_weight,
         eval_fn=eval_fn,
         device=a.device,
-        sample_dna=window_sampler(train) if genome else None,
+        seed=a.seed,
+        sample_dna=window_sampler(train, seed=a.seed) if genome else None,
     )
     save_align(model.cpu(), ckpt / "align.pt")
     metrics = eval_fn(model)
@@ -296,6 +297,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_embed)
 
     s = sub.add_parser("train-align")
+    s.add_argument("--seed", type=int, default=0)
     s.add_argument("--epochs", type=int, default=5)
     s.add_argument("--batch-size", type=int, default=128)
     s.add_argument("--lr", type=float, default=1e-4)
@@ -309,6 +311,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_train_align)
 
     s = sub.add_parser("train-prior")
+    s.add_argument("--seed", type=int, default=0)
     s.add_argument("--epochs", type=int, default=50)
     s.add_argument("--batch-size", type=int, default=256)
     s.add_argument("--lr", type=float, default=3e-4)
@@ -319,6 +322,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_train_prior)
 
     s = sub.add_parser("train-decoder")
+    s.add_argument("--seed", type=int, default=0)
     s.add_argument("--model-id", default="stable-diffusion-v1-5/stable-diffusion-v1-5")
     s.add_argument("--epochs", type=int, default=1)
     s.add_argument("--batch-size", type=int, default=8)
@@ -344,4 +348,6 @@ def main(argv=None):
     s.set_defaults(fn=cmd_generate)
 
     a = p.parse_args(argv)
+    # seeds weight init, prior/decoder noise and batch order; GPU kernels can still differ in the last bits
+    torch.manual_seed(getattr(a, "seed", 0))
     a.fn(a)
