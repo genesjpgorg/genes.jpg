@@ -35,9 +35,8 @@ LCO1490 = "GGTCAACAAATCATAAAGATATTGG"
 HCO2198 = "TAAACTTCAGGGTGACCAAAAAATCA"
 COX1_NAMES = {"COX1", "COI", "CO1", "COXI", "MT-CO1"}
 RECORD_FIELDS = [*FIELDS, "genome", "kingdom", "phylum", "class", "ncbi_taxid"]
-WINDOW_BP = (
-    10_000  # > 1024 tokens of DNA even in repeat-rich sequence; the tokenizer truncates the rest
-)
+# > 1024 tokens of DNA even in repeat-rich sequence; the tokenizer truncates the rest
+WINDOW_BP = 10_000
 MAX_N_FRAC = 0.01  # reject windows with more unknown bases than this
 EVAL_WINDOWS = 32  # windows averaged into one genome embedding
 _COMP = str.maketrans("ACGTN", "TGCAN")
@@ -46,9 +45,8 @@ _NORM = bytes(  # upper-case ACGT (soft-masked repeats included); anything else 
 )
 
 
-PACK_VERSION = (
-    2  # bump when the sequence filter changes; packs written by another version are rebuilt
-)
+# bump when the sequence filter changes; packs written by another version are rebuilt
+PACK_VERSION = 2
 ORGANELLES = ("Mitochondrion", "Chloroplast", "Plastid", "Apicoplast")
 # alternate haplotypes and patches repeat regions already in the primary sequences (GRCh38: 199 Mb, GRCm39);
 # filtered by role, not by assembly-unit name, which is not always "Primary Assembly" (GRCm39's is "C57BL/6J")

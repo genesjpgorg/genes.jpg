@@ -68,6 +68,9 @@ GPU, which requires a payment method on the Modal workspace.
 
 ## Metrics
 
+`train-align`, `train-prior` and `train-decoder` take `--seed` (default 0), which seeds weight initialisation, batch
+order, genome windows and diffusion noise: reruns with the same seed reproduce up to GPU kernel nondeterminism.
+
 `train-align` / `train-prior` print DNA→image retrieval on the eval splits: specimen top-1/top-5 (find the exact
 specimen's photo), and species/genus top-1 (nearest photo has the right label). The prior also reports mean cosine
 between sampled and true image embeddings. Checkpoints and `*_metrics.json` go to `<data>/checkpoints/`.
