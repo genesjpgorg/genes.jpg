@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 analysis = ["scipy>=1.14", "statsmodels>=0.14", "matplotlib>=3.8"]
+web = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.20", "pysam>=0.23"]
 # DNA -> image model (genesjpg): `uv sync --extra model`
 model = [
     "torch",
@@ -37,7 +38,11 @@ model = [
 genes-datasets = "datasets.cli:app"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8",
+    "ruff>=0.6",
+]
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TSS Variant Explorer · GI lifespan model</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230e756c'/%3E%3Cpath d='M12 9c0 11 16 11 16 22M28 9c0 11-16 11-16 22M13 12h14M14 28h12M15 19h10' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="/" aria-label="TSS Variant Explorer home"><span class="brand-icon" aria-hidden="true">⌁</span><span>TSS <strong>Variant Explorer</strong></span></a><div class="header-meta"><span class="pill">LOCAL WORKSPACE</span><span id="readiness" class="status">Connecting…</span></div></header>
+<main>
+  <section class="intro"><div class="eyebrow">GENOMIC INTELLIGENCE · EXPRESSION → LIFESPAN</div><h1>What changes when<br>the sequence changes?</h1><p>Compare a human VCF against reference DNA through the frozen lifespan predictor. Same hepatocyte context. Same regression weights. Your sequence variants.</p><div class="tags"><span>GRCh38 / Ensembl 116</span><span>g0-expression-8192</span><span>81,920 bp per TSS window</span></div></section>
+  <div class="workspace">
+  <section class="panel input-panel" aria-labelledby="input-heading"><div class="section-heading"><span class="step">01</span><h2 id="input-heading">Configure analysis</h2></div>
+    <form id="analysis-form">
+      <label class="field-label" for="vcf-file">Human variant calls</label>
+      <label class="dropzone" id="dropzone" for="vcf-file"><span class="upload-icon" aria-hidden="true">↥</span><strong id="file-title">Drop a VCF here, or choose a file</strong><span id="file-subtitle">.vcf or .vcf.gz · up to 512 MB</span><input id="vcf-file" type="file" accept=".vcf,.gz" aria-describedby="file-subtitle"></label>
+      <div class="upload-footer"><span>Genotype calls required</span><a href="/api/example.vcf" download>Get a synthetic example ↗</a></div>
+      <div id="upload-details" hidden><label class="field-label" for="sample">Sample</label><select id="sample" required></select><p id="assembly-evidence" class="muted small"></p></div>
+      <label class="check"><input id="assembly-confirm" type="checkbox" required><span>My variant calls use the <strong>GRCh38 (hg38)</strong> reference genome.</span></label>
+      <fieldset class="model-field"><legend class="field-label">Lifespan predictor</legend>
+        <label class="model-card"><input type="radio" name="model" value="fdr_genes_ridge" checked><span><strong>Selected genes <span class="mini-tag">DEFAULT</span></strong><small>57 fitted genes · 56 human TSS windows</small><small>Reference estimate <b id="selected-reference">32.53 years</b></small></span></label>
+        <label class="model-card"><input type="radio" name="model" value="all_genes_ridge"><span><strong>All genes</strong><small>3,036 fitted genes · 3,034 human TSS windows</small><small>Reference estimate <b id="all-reference">46.56 years</b></small></span></label>
+      </fieldset>
+      <p id="model-note" class="muted small">Only windows changed by your called variants require GI inference.</p>
+      <details class="advanced"><summary>Phase sampling &amp; assumptions</summary><label class="field-label" for="phase-draws">Phase draws</label><select id="phase-draws"><option value="2">2 · faster</option><option value="4" selected>4 · default</option><option value="8">8 · more phase samples</option></select><p>Phased blocks are preserved. Unphased heterozygotes and separate phase blocks receive reproducible phase assignments. We average haplotype expression in TPM units. Missing or filtered calls retain reference DNA.</p></details>
+      <button class="primary" id="run-button" type="submit" disabled>Run analysis <span aria-hidden="true">→</span></button>
+      <p class="privacy">The VCF stays on this machine. Relevant reference and modified DNA windows are sent to the GI API using the server’s key.</p>
+      <div id="form-error" class="error" role="alert" hidden></div>
+    </form>
+  </section>
+  <section class="results-column" aria-label="Analysis results">
+    <div class="panel empty-state" id="empty-state"><div class="section-heading"><span class="step">02</span><h2>Your sequence comparison</h2></div><div class="sequence-art" aria-hidden="true"><div><span>A</span><span>C</span><span>T</span><span>G</span><span>A</span><span>C</span><span>T</span></div><i>↓</i><div><span>A</span><span>C</span><span>T</span><span class="variant-base">A</span><span>A</span><span>C</span><span>T</span></div></div><h3>A direct comparison to reference DNA</h3><p>Upload a VCF to see the percentage change in the model’s lifespan estimate, plus the expression changes driving it.</p><ol class="pipeline"><li><span>1</span>Filter calls to fitted genes’ TSS windows</li><li><span>2</span>Construct haplotypes and infer expression</li><li><span>3</span>Apply the saved regression weights</li></ol></div>
+    <div class="panel progress-panel" id="progress-panel" hidden aria-live="polite"><div class="section-heading"><span class="step">02</span><h2 id="progress-title">Analysis queued</h2><span class="spinner" id="spinner" aria-hidden="true"></span></div><p id="progress-message"></p><progress id="progress-bar" max="100" aria-label="Analysis progress"></progress><div class="progress-meta"><span id="progress-counts">Preparing…</span><button type="button" class="text-button" id="cancel-button">Cancel</button></div><p class="muted small">Processing continues if you close this page. Reopen this job’s URL to return.</p><a id="job-link" class="small" href="#">Current job</a></div>
+    <div id="result" hidden>
+      <div class="panel result-hero"><div class="eyebrow">CHANGE IN MODEL-PREDICTED LIFESPAN</div><div class="result-value" id="percent-change">—</div><p id="result-direction"></p><div class="estimate-grid"><div><span>Matched reference</span><strong id="reference-years">—</strong></div><span class="estimate-arrow" aria-hidden="true">→</span><div><span>Modified sequence</span><strong id="modified-years">—</strong></div></div><div class="result-stats"><span><b id="affected-count">0</b> affected genes</span><span><b id="inference-count">0</b> GI sequences</span><span><b id="cache-count">0</b> cached</span></div></div>
+      <div class="panel gene-panel"><div class="section-heading"><h2>What drives the change</h2><a id="csv-download" class="small" href="#">Gene effects CSV ↓</a></div><p class="muted small">Sorted by absolute contribution to the model’s log-lifespan estimate.</p><div class="table-wrap"><table><thead><tr><th>Gene</th><th>Reference<br>expression</th><th>Modified<br>expression</th><th>Δ log-lifespan</th></tr></thead><tbody id="gene-rows"></tbody></table></div><p class="muted small">Expression: log(1 + TPM). Log-lifespan contributions add; percentages do not.</p><button id="show-all" type="button" class="text-button" hidden>Show all genes</button></div>
+      <details class="panel result-details"><summary>Run details &amp; assumptions</summary><dl id="run-details"></dl><ul id="assumptions"></ul><a class="download" id="json-download" href="#">Download full result JSON ↓</a></details>
+    </div>
+    <aside class="interpretation"><span class="info-mark" aria-hidden="true">i</span><div><strong>An experimental model comparison</strong><p>This model was trained across mammalian species, not human individuals. The percentage is a change in its estimate, not a validated change in your lifespan. The reference estimates are model outputs, not human life expectancy.</p></div></aside>
+  </section>
+  </div>
+  <footer>Fixed DNA context: <code>Homo sapiens primary hepatocytes, untreated, bulk RNA-seq.</code><span>Local analysis · No ancestry or body-mass adjustment</span></footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,94 @@
+{
+  "reference_predicted_years": 46.5555822887238,
+  "modified_predicted_years": 46.72495161440685,
+  "percent_change": 0.36380025199269483,
+  "frozen_reference_predicted_years": 46.55558228872374,
+  "log_lifespan_change": 0.0036314009948248405,
+  "phase_percent_range": [
+    0.36380025199269483,
+    0.36380025199269483
+  ],
+  "genes": [
+    {
+      "human_gene_id": "ENSG00000100439",
+      "gene_name": "ABHD4",
+      "variant_records": 1,
+      "reference_expression_log1p_tpm": 2.8561,
+      "modified_expression_log1p_tpm": 2.5789,
+      "expression_delta": -0.2772000000000001,
+      "log_lifespan_contribution": 0.003631400994825009,
+      "coefficient_standardized": -0.0033694908286231147,
+      "training_scale": 0.2572073034692046
+    }
+  ],
+  "features_total": 3036,
+  "features_with_reference_windows": 3034,
+  "median_imputed_gene_ids": [
+    "ENSG00000170464",
+    "ENSG00000266200"
+  ],
+  "result_schema_version": 1,
+  "job_id": "161d403c-da8e-419b-baeb-bf11b26a9a27",
+  "model": "all_genes_ridge",
+  "sample": "SYNTHETIC_DEMO",
+  "input_sha256": "3391abbf607099cd5732c33f5ea4df5bb47209a516410b02a48148e87ff997c7",
+  "counts": {
+    "records_scanned": 1,
+    "records_in_padded_windows": 1,
+    "eligible_variant_records": 1
+  },
+  "genes_affected": 1,
+  "requests_total": 2,
+  "api_requests": 0,
+  "cache_hits": 2,
+  "assembly": "GRCh38",
+  "ensembl_release": 116,
+  "gi_config": {
+    "model": "g0-expression-8192",
+    "description": "Homo sapiens primary hepatocytes, untreated, bulk RNA-seq.",
+    "sequence_name": "orthologue_tss_window",
+    "flank_bp": 40960
+  },
+  "phase_draws": 4,
+  "phase_seed": 20261004,
+  "sequence_plan": [
+    {
+      "human_gene_id": "ENSG00000100439",
+      "native_hash": "fcc1db0ca6ff06f5aea73326c8ec569fc9d8ca7a8086470eff925bfbcafb4142",
+      "haplotype_hashes": [
+        [
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad",
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad"
+        ],
+        [
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad",
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad"
+        ],
+        [
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad",
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad"
+        ],
+        [
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad",
+          "1a56079d0994ee41b61efbb568d197ed22e4b2510f838a7177ae2fc5ba7d68ad"
+        ]
+      ],
+      "variant_records": 1
+    }
+  ],
+  "created_at": "2026-10-04T13:25:59.745692+00:00",
+  "interpretation": "Experimental change in a comparative-species model, not a validated estimate of personal lifespan or a causal variant effect.",
+  "assumptions": [
+    "Missing, filtered and absent calls retain reference sequence; a variant-only VCF cannot establish callability.",
+    "Diploid expression is the mean of haplotype TPM, averaged over deterministic phase draws.",
+    "Native DNA is re-inferred for affected genes using the same GI service/cache as modified DNA; unaffected genes retain frozen reference expression.",
+    "The range across phase draws measures phase sensitivity, not a confidence interval.",
+    "Fixed annotated TSS, fixed human hepatocyte context; copy number, TSS switching and tissue changes are not modeled."
+  ],
+  "model_artifact_sha256": {
+    "docs/gi-lifespan-predictor/coefficients.csv": "5f4b3709609c9b71c84b21c6526fa5fb5cae3500e96a8c2278467c7e2b519298",
+    "docs/gi-lifespan-predictor/human_prediction_frozen.json": "2a9e8347abdaea9759e329757e52cdba15e8c1ddc18c4f059854d84ed068a659",
+    "docs/gi-longevity-final/reference_human_tss.csv": "ff36f0757beff106f26d3a769e335dba2e386711809fd78d9b9a5563f57edfd0",
+    "docs/gi-longevity-final/reference_human_expression.csv": "e5b2249ffb940f3ee37094062de7538ed93cf5bedfdb1fca9303ac6c91795ef3"
+  }
+}

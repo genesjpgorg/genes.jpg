@@ -1,0 +1,6 @@
+##fileformat=VCFv4.3
+##reference=GRCh38
+##contig=<ID=14,length=107043718>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SYNTHETIC_DEMO
+14	22598305	.	C	A	.	PASS	.	GT	1/1
