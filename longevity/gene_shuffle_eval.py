@@ -41,7 +41,8 @@ def predict(model, frame, cfg, device, shuffled, seed):
         frame.n_tokens.to_numpy(), args.eval_tokens_per_batch, args.max_len, False, random.Random(0)
     )
     for i, batch in enumerate(batches):
-        inputs, mask = collate([arrays[j] for j in batch], args.max_len, False, random.Random(0))
+        packed = collate([arrays[j] for j in batch], args.max_len, False, random.Random(0))
+        inputs, mask = packed[:2]
         if shuffled:
             inputs = shuffle_batch(inputs, mask, [keys[j] for j in batch], seed)
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
