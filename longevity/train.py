@@ -271,11 +271,10 @@ def _main(argv, stack) -> None:
     else:
         df = pd.read_parquet(args.data)
     if spec:
-        from longevity.comparison import validate_cohort
+        from longevity.comparison import validate_chunk_counts, validate_cohort
 
         validate_cohort(df, spec)
-        if not df.groupby("assembly_accession").size().eq(1000).all():
-            ap.error("comparison requires exactly 1000 chunks per genome")
+        validate_chunk_counts(df, spec)
         if "comparison_sha256" not in df or not df.comparison_sha256.eq(spec["sha256"]).all():
             ap.error("H5 shards were not prepared with this comparison specification")
     df = df[~df.ncbi_taxid.isin(args.exclude_species)].reset_index(drop=True)

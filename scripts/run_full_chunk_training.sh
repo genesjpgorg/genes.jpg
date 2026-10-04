@@ -3,7 +3,7 @@
 set -euo pipefail
 cd /home/fishman/genesjpg-full
 root=/mnt/filesystem-n0/genes.jpg
-job="$root/runs/longevity-full-chunks-job"
+job="$root/runs/longevity-full-cds-budget-job"
 mkdir -p "$job"
 trap 'printf "%s\n" "$?" > "$job/pipeline.exit"' EXIT
 exec >> "$job/pipeline.log" 2>&1
@@ -13,7 +13,7 @@ printf 'Waiting for complete, verified input preparation\n'
 while [[ ! -f "$job/prepare.exit" ]]; do sleep 30; done
 [[ "$(cat "$job/prepare.exit")" == 0 ]] || { echo 'Preparation failed'; exit 1; }
 .venv-train/bin/python -u -m longevity.audit_chunks \
- --data "$root/datasets/longevity-full-chunks" --comparison configs/longevity-full-comparison.json \
+ --data "$root/datasets/longevity-full-cds-budget-chunks" --comparison configs/longevity-full-cds-budget-comparison.json \
  --out "$job/input-audit.json" > "$job/audit.log" 2>&1
 exec 9> /home/fishman/.cache/genesjpg-gpu.lock
 flock -x 9
@@ -22,10 +22,10 @@ git rev-parse HEAD > "$job/code-commit.txt"
 git diff --exit-code -- longevity scripts configs
 printf 'Starting full training\n'
 .venv-train/bin/python -u -m longevity.train \
- --data "$root/datasets/longevity-full-chunks" --out "$root/runs/longevity-full-chunks" \
- --comparison configs/longevity-full-comparison.json > "$job/training.log" 2>&1
+ --data "$root/datasets/longevity-full-cds-budget-chunks" --out "$root/runs/longevity-full-cds-budget-chunks" \
+ --comparison configs/longevity-full-cds-budget-comparison.json > "$job/training.log" 2>&1
 printf 'Evaluating intact and shuffled tokens\n'
 .venv-train/bin/python -u -m longevity.shuffle_eval \
- --run "$root/runs/longevity-full-chunks" --data "$root/datasets/longevity-full-chunks" \
- --out "$root/runs/longevity-full-chunks-controls" > "$job/full_shuffle.log" 2>&1
+ --run "$root/runs/longevity-full-cds-budget-chunks" --data "$root/datasets/longevity-full-cds-budget-chunks" \
+ --out "$root/runs/longevity-full-cds-budget-chunks-controls" > "$job/full_shuffle.log" 2>&1
 printf 'Training and evaluations completed\n'

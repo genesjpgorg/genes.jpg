@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 from longevity.chunks import load_chunks
-from longevity.comparison import read_spec, validate_cohort
+from longevity.comparison import read_spec, validate_chunk_counts, validate_cohort
 from longevity.train import LongevityRegressor, evaluate, log
 
 
@@ -145,8 +145,7 @@ def run_eval(run, data, out, seed=0):
         validate_cohort(df, spec)
         if not df.comparison_sha256.eq(spec["sha256"]).all():
             raise ValueError("H5 comparison fingerprints differ")
-        if not df.groupby("assembly_accession").size().eq(1000).all():
-            raise ValueError("Expected 1000 chunks per genome")
+        validate_chunk_counts(df, spec)
         out.mkdir(parents=True)
         for split in ("val", "test"):
             frame = df[df.ncbi_taxid.isin(cfg["split"][split])].reset_index(drop=True)

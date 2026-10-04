@@ -87,6 +87,20 @@ def validate_cohort(df, spec):
             raise ValueError(f"Comparison cohort differs in {col}")
 
 
+def chunk_counts(spec):
+    """Return the frozen per-assembly input budget; retain legacy 1000-input specs."""
+    wanted = {r["assembly_accession"] for r in spec["cohort"]}
+    counts = spec.get("chunks_per_assembly", {acc: 1000 for acc in wanted})
+    if set(counts) != wanted or any(type(n) is not int or n < 1 for n in counts.values()):
+        raise ValueError("Invalid per-assembly chunk budget")
+    return counts
+
+
+def validate_chunk_counts(df, spec):
+    if df.groupby("assembly_accession").size().to_dict() != chunk_counts(spec):
+        raise ValueError("Chunk counts differ from frozen per-assembly budget")
+
+
 def create_spec(run, pairs, budget, allow_running_reference=False):
     run, pairs = Path(run), Path(pairs)
     cfg = json.loads((run / "config.json").read_text())
