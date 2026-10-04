@@ -3,7 +3,6 @@
 usage: uv run --no-project --with matplotlib --with pillow make_figures.py
 """
 
-import csv
 import json
 import re
 from pathlib import Path
@@ -18,13 +17,27 @@ RUNS = Path("/mnt/filesystem-a3/genes.jpg/runs")
 MAIN = RUNS / "tol200m-refseq-diverse-genome"
 CTRL = RUNS / "tol200m-refseq-diverse-genome-control-shuffle_tokens"
 OUT = Path(__file__).parent
-RUNSET = [("main", MAIN, "Main run (intact DNA)", "#1f5f9e"), ("B", CTRL, "Control B (shuffled tokens)", "#c2571a")]
-SPLITS = [("seen", "Seen species"), ("new_species_known_family", "New species, known family"),
-          ("new_family_known_class", "New family, known class")]
+RUNSET = [
+    ("main", MAIN, "Main run (intact DNA)", "#1f5f9e"),
+    ("B", CTRL, "Control B (shuffled tokens)", "#c2571a"),
+]
+SPLITS = [
+    ("seen", "Seen species"),
+    ("new_species_known_family", "New species, known family"),
+    ("new_family_known_class", "New family, known class"),
+]
 RANKS = ["species", "genus", "family", "order", "class"]
 
-plt.rcParams.update({"font.size": 10, "axes.spines.top": False, "axes.spines.right": False,
-                     "axes.grid": True, "grid.color": "#e3e3e3", "figure.dpi": 130})
+plt.rcParams.update(
+    {
+        "font.size": 10,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.grid": True,
+        "grid.color": "#e3e3e3",
+        "figure.dpi": 130,
+    }
+)
 
 
 def align_curves():
@@ -32,15 +45,19 @@ def align_curves():
     fig, ax = plt.subplots(1, 3, figsize=(13, 3.8))
     for key, run, label, col in RUNSET:
         ep, loss, seen, unseen = [], [], [], []
-        for line in open(run / "train_align.log"):
+        for line in (run / "train_align.log").read_text().splitlines():
             m = re.match(r"align epoch (\d+)/\d+ loss ([\d.]+)", line)
             if not m:
                 continue
             d = dict(re.findall(r"(\S+)=([\d.]+)", line))
-            ep.append(int(m[1])); loss.append(float(m[2]))
-            seen.append(float(d["val/pooled_species_top1"])); unseen.append(float(d["val_unseen/pooled_species_top1"]))
-            rows.append(f"{key},{m[1]},{m[2]},{d['val/species_top1']},{d['val/pooled_species_top1']},"
-                        f"{d['val_unseen/pooled_species_top1']}")
+            ep.append(int(m[1]))
+            loss.append(float(m[2]))
+            seen.append(float(d["val/pooled_species_top1"]))
+            unseen.append(float(d["val_unseen/pooled_species_top1"]))
+            rows.append(
+                f"{key},{m[1]},{m[2]},{d['val/species_top1']},{d['val/pooled_species_top1']},"
+                f"{d['val_unseen/pooled_species_top1']}"
+            )
         ax[0].plot(ep, loss, color=col, label=label)
         ax[1].plot(ep, seen, color=col, marker="o", ms=3)
         ax[2].plot(ep, unseen, color=col, marker="o", ms=3)
@@ -50,7 +67,9 @@ def align_curves():
     ax[0].legend(frameon=False)
     for a in ax:
         a.set_xticks([1, 5, 10, 15, 20])
-    fig.tight_layout(); fig.savefig(OUT / "align_training.png"); plt.close(fig)
+    fig.tight_layout()
+    fig.savefig(OUT / "align_training.png")
+    plt.close(fig)
     (OUT / "align.csv").write_text("\n".join(rows) + "\n")
 
 
@@ -59,14 +78,23 @@ def prior_curves():
     fig, ax = plt.subplots(figsize=(7, 3.6))
     for key, run, label, col in RUNSET:
         ep, loss = [], []
-        for line in open(run / "train_prior.log"):
+        for line in (run / "train_prior.log").read_text().splitlines():
             m = re.match(r"prior epoch (\d+)/\d+ loss ([\d.]+)", line)
             if m:
-                ep.append(int(m[1])); loss.append(float(m[2])); rows.append(f"{key},{m[1]},{m[2]}")
+                ep.append(int(m[1]))
+                loss.append(float(m[2]))
+                rows.append(f"{key},{m[1]},{m[2]}")
         ax.plot(ep, loss, color=col, label=label, lw=1.2)
-    ax.set(title="Diffusion prior training loss", xlabel="epoch", ylabel="loss (log scale)", yscale="log")
+    ax.set(
+        title="Diffusion prior training loss",
+        xlabel="epoch",
+        ylabel="loss (log scale)",
+        yscale="log",
+    )
     ax.legend(frameon=False)
-    fig.tight_layout(); fig.savefig(OUT / "prior_training.png"); plt.close(fig)
+    fig.tight_layout()
+    fig.savefig(OUT / "prior_training.png")
+    plt.close(fig)
     (OUT / "prior.csv").write_text("\n".join(rows) + "\n")
 
 
@@ -76,28 +104,42 @@ def rank_panels(fname, title, series):
     x = range(len(RANKS))
     for a, (split, name) in zip(ax, SPLITS):
         for label, col, style, data in series:
-            a.plot(x, [data[split][f"{r}_top1"] for r in RANKS], style, color=col, label=label, ms=5)
+            a.plot(
+                x, [data[split][f"{r}_top1"] for r in RANKS], style, color=col, label=label, ms=5
+            )
         a.set(title=name, xticks=list(x), xticklabels=RANKS, ylim=(0, 1.05))
     ax[0].set_ylabel("top-1 accuracy")
     ax[-1].legend(frameon=False, fontsize=8.5, loc="upper left")
-    fig.suptitle(title); fig.tight_layout(); fig.savefig(OUT / fname); plt.close(fig)
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(OUT / fname)
+    plt.close(fig)
 
 
 def evaluation():
-    ev = {k: json.load(open(r / "evaluation.json"))["methods"] for k, r, _, _ in RUNSET}
-    rank_panels("retrieval_by_rank.png", "Nearest species for each genome embedding, scored at each taxonomic rank", [
-        ("Main: aligned embedding", "#1f5f9e", "-o", ev["main"]["aligned"]),
-        ("B: aligned embedding", "#c2571a", "-o", ev["B"]["aligned"]),
-        ("Main: prior samples", "#1f5f9e", ":s", ev["main"]["prior"]),
-        ("B: prior samples", "#c2571a", ":s", ev["B"]["prior"]),
-        ("k-mer nearest neighbour", "#555555", "--^", ev["main"]["kmer_nn"]),
-        ("chance", "#aaaaaa", "--", ev["main"]["chance"]),
-    ])
-    gen = {k: json.load(open(r / "generated_eval.json")) for k, r, _, _ in RUNSET}
-    rank_panels("generated_by_rank.png", "Generated images, classified by BioCLIP, scored at each taxonomic rank", [
-        ("Main run", "#1f5f9e", "-o", gen["main"]), ("Control B", "#c2571a", "-o", gen["B"]),
-        ("chance", "#aaaaaa", "--", ev["main"]["chance"]),
-    ])
+    ev = {k: json.loads((r / "evaluation.json").read_text())["methods"] for k, r, _, _ in RUNSET}
+    rank_panels(
+        "retrieval_by_rank.png",
+        "Nearest species for each genome embedding, scored at each taxonomic rank",
+        [
+            ("Main: aligned embedding", "#1f5f9e", "-o", ev["main"]["aligned"]),
+            ("B: aligned embedding", "#c2571a", "-o", ev["B"]["aligned"]),
+            ("Main: prior samples", "#1f5f9e", ":s", ev["main"]["prior"]),
+            ("B: prior samples", "#c2571a", ":s", ev["B"]["prior"]),
+            ("k-mer nearest neighbour", "#555555", "--^", ev["main"]["kmer_nn"]),
+            ("chance", "#aaaaaa", "--", ev["main"]["chance"]),
+        ],
+    )
+    gen = {k: json.loads((r / "generated_eval.json").read_text()) for k, r, _, _ in RUNSET}
+    rank_panels(
+        "generated_by_rank.png",
+        "Generated images, classified by BioCLIP, scored at each taxonomic rank",
+        [
+            ("Main run", "#1f5f9e", "-o", gen["main"]),
+            ("Control B", "#c2571a", "-o", gen["B"]),
+            ("chance", "#aaaaaa", "--", ev["main"]["chance"]),
+        ],
+    )
 
 
 def contact_sheets(width=900):
@@ -109,4 +151,7 @@ def contact_sheets(width=900):
 
 
 if __name__ == "__main__":
-    align_curves(); prior_curves(); evaluation(); contact_sheets()
+    align_curves()
+    prior_curves()
+    evaluation()
+    contact_sheets()

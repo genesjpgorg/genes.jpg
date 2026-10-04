@@ -157,7 +157,9 @@ def kmer_nn_queries(table: dict, targets: list[str], n_windows: int = 64, k: int
 
 def caption_queries(table: dict, targets: list[str], clip, rank: str) -> dict:
     """BioCLIP text embedding of each target's taxonomy caption, truncated after ``rank``."""
-    keep = {"species": 5, "genus": 4, "family": 3, "order": 2, "class": 1}[rank]
+    keep = {"species": 4, "genus": 3, "family": 2, "order": 1, "class": 0}[
+        rank
+    ]  # of order/family/genus/species
     texts = {}
     for t in targets:
         r = dict(table[t]["rec"])

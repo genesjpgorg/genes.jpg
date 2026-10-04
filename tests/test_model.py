@@ -330,6 +330,35 @@ def test_evaluate_score_and_chance():
     assert abs(c["species_top2"] - 0.5) < 1e-9  # 1 matching of 4, two draws
 
 
+def test_caption_queries_stop_at_rank():
+    from genesjpg.evaluate import caption_queries
+
+    class EchoCLIP:
+        def encode_texts(self, texts):
+            return texts
+
+    rec = {
+        "kingdom": "Animalia",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "order": "Carnivora",
+        "family": "Felidae",
+        "subfamily": "",
+        "genus": "Panthera",
+        "species": "Panthera leo",
+    }
+    table = {"1": {"rec": rec}}
+    cap = {
+        r: caption_queries(table, ["1"], EchoCLIP(), r)["1"]
+        for r in ("species", "genus", "family", "order", "class")
+    }
+    assert cap["species"].endswith("Felidae Panthera leo")
+    assert cap["genus"].endswith("Felidae Panthera")
+    assert cap["family"].endswith("Carnivora Felidae")
+    assert cap["order"].endswith("Mammalia Carnivora")
+    assert cap["class"].endswith("Chordata Mammalia")
+
+
 def test_kmer_profile_is_strand_independent():
     from genesjpg.evaluate import kmer_profile
 

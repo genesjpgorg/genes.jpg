@@ -100,7 +100,9 @@ Top-1 accuracy at the ranks where the runs differ most:
 | New family | k-mer nearest neighbour | 0.00 | 0.00 | 0.00 | 0.00 | 0.83 |
 
 Chance is 0.004 at species level and 0.05–0.50 at class level, depending on the group. The full table, including the
-caption oracle and the frozen-ModernGENA baseline, is in each run's `evaluation.json`.
+caption oracle and the frozen-ModernGENA baseline, is in each run's `evaluation.json`. The caption-oracle numbers in those files were
+computed before a fix to `caption_queries`: each `caption_<rank>` there is really one rank finer (`caption_genus` still
+names the species). Rerun `evaluate` to refresh them. None of the numbers in this report use them.
 
 ## Generated images
 
