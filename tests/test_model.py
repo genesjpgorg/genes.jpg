@@ -1,6 +1,7 @@
 import json
 import zlib
 
+import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch", reason="model tests need `uv sync --extra model`")
@@ -298,3 +299,221 @@ def test_bioclip_ranks_from_ncbi_species():
     assert bioclip_ranks(turtle) == ("Animalia", "Chordata", "Reptilia")
     fungus = row("Fungi", "Basidiomycota", "Agaricomycetes", [4751, 5204])
     assert bioclip_ranks(fungus) == ("Fungi", "Basidiomycota", "Agaricomycetes")
+
+
+def _toy_table():
+    """4 species in 2 genera of 1 family; species i's held-out centroid is basis vector i."""
+    names = [("A", "A a"), ("A", "A b"), ("B", "B c"), ("B", "B d")]
+    table = {}
+    for i, (g, sp) in enumerate(names):
+        rec = {"species": sp, "genus": g, "family": "F", "order": "O", "class": "C"}
+        table[str(i)] = {
+            "rec": rec,
+            "ranks": {"species": sp, "genus": g, "family": "F", "order": "O", "class": "C"},
+            "unseen": i == 3,
+            "held": torch.eye(8)[i],
+            "train": torch.eye(8)[i],
+        }
+    return table
+
+
+def test_evaluate_score_and_chance():
+    from genesjpg.evaluate import chance, score
+
+    table = _toy_table()
+    # species 3 answered with species 2's centroid: wrong species, right genus, family, order
+    m = score({"3": table["2"]["held"]}, table, k=2)
+    assert m["species_top1"] == 0.0 and m["genus_top1"] == 1.0 and m["family_top1"] == 1.0
+    assert score({"3": table["3"]["held"]}, table)["species_top1"] == 1.0
+    c = chance(["3"], table, k=2)
+    assert c["species_top1"] == 0.25 and c["genus_top1"] == 0.5 and c["family_top1"] == 1.0
+    assert abs(c["species_top2"] - 0.5) < 1e-9  # 1 matching of 4, two draws
+
+
+def test_caption_queries_stop_at_rank():
+    from genesjpg.evaluate import caption_queries
+
+    class EchoCLIP:
+        def encode_texts(self, texts):
+            return texts
+
+    rec = {
+        "kingdom": "Animalia",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "order": "Carnivora",
+        "family": "Felidae",
+        "subfamily": "",
+        "genus": "Panthera",
+        "species": "Panthera leo",
+    }
+    table = {"1": {"rec": rec}}
+    cap = {
+        r: caption_queries(table, ["1"], EchoCLIP(), r)["1"]
+        for r in ("species", "genus", "family", "order", "class")
+    }
+    assert cap["species"].endswith("Felidae Panthera leo")
+    assert cap["genus"].endswith("Felidae Panthera")
+    assert cap["family"].endswith("Carnivora Felidae")
+    assert cap["order"].endswith("Mammalia Carnivora")
+    assert cap["class"].endswith("Chordata Mammalia")
+
+
+def test_kmer_profile_is_strand_independent():
+    from genesjpg.evaluate import kmer_profile
+
+    s = "ACGTTGCAAGGCTTAACCGGTATATCGNNACGGT" * 20
+    rc = s.translate(str.maketrans("ACGTN", "TGCAN"))[::-1]
+    assert np.allclose(kmer_profile([s], k=4), kmer_profile([rc], k=4))
+    assert abs(kmer_profile([s], k=4).sum() - 1) < 1e-9
+
+
+def test_prepare_pairs_genomes_by_accession_not_taxid(tmp_path):
+    """A genome whose taxid is a subspecies must still reach its species' images (via the pair's accession)."""
+    import csv
+
+    from genesjpg.genomes import prepare_records
+
+    fa, report, _ = _fake_assembly(tmp_path, 0)
+    ds = tmp_path / "ds"
+    (ds / "images/10042").mkdir(parents=True)
+
+    def write(name, rows):
+        with open(ds / name, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+
+    write(
+        "genomes.csv",
+        [
+            {
+                "assembly_accession": "GCF_1.1",
+                "ncbi_taxid": "230844",
+                "species_taxid": "10042",
+                "sequence_file": str(fa),
+                "extra_files": str(report),
+            }
+        ],
+    )
+    sp = {
+        "ncbi_taxid": "10042",
+        "scientific_name": "Peromyscus maniculatus",
+        "kingdom": "Metazoa",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "order": "Rodentia",
+        "family": "Cricetidae",
+        "genus": "Peromyscus",
+        "lineage_taxids": "1|7711|40674|10042",
+    }
+    write("species.csv", [sp])
+    write("images.csv", [{"image_id": f"i{k}", "file": f"images/10042/i{k}.jpg"} for k in range(5)])
+    write(
+        "pairs.csv",
+        [
+            {"image_id": f"i{k}", "assembly_accession": "GCF_1.1", "ncbi_taxid": "10042"}
+            for k in range(5)
+        ],
+    )
+    path = prepare_records(ds, tmp_path / "run", genome_cache=tmp_path / "packed")
+    with open(path, newline="") as f:
+        recs = list(csv.DictReader(f))
+    assert len(recs) == 5 and all(r["genome"].endswith("GCF_1.1") for r in recs)
+
+
+def test_shuffle_tokens_keeps_composition_and_special_tokens():
+    from genesjpg.encoders import shuffle_tokens
+
+    tok = HFTokenizer(MODERNGENA)
+    seqs = ["ACGTTGCAAGGCTTAACCGGTATATCG" * 40, "TTGACCA" * 30]
+    ids, mask = tok(seqs)
+    sh = shuffle_tokens(ids, mask, seqs)
+    for i in range(2):
+        n = int(mask[i].sum())
+        assert sh[i, 0] == ids[i, 0] and sh[i, n - 1] == ids[i, n - 1]  # [CLS], [SEP]
+        assert torch.equal(sh[i, n:], ids[i, n:])  # padding
+        assert sorted(sh[i, 1 : n - 1].tolist()) == sorted(ids[i, 1 : n - 1].tolist())
+    assert not torch.equal(sh, ids)
+    assert torch.equal(sh, shuffle_tokens(ids, mask, seqs))  # same window -> same shuffle
+    assert torch.equal(HFTokenizer(MODERNGENA, shuffle=True)(seqs)[0], sh)
+
+
+def test_align_checkpoint_keeps_shuffle_flag(tmp_path):
+    model = AlignModel(DNAEncoder.tiny())
+    model.dna.tokenizer.shuffle = True
+    save_align(model, tmp_path / "align.pt")
+    assert torch.load(tmp_path / "align.pt")["shuffle_tokens"] is True
+
+
+def test_prepare_permute_genomes_control(tmp_path):
+    import csv
+
+    from genesjpg.genomes import prepare_records
+
+    fa, report, _ = _fake_assembly(tmp_path, 0)
+    ds = tmp_path / "ds"
+    ds.mkdir()
+    taxa = ["11", "22", "33", "44"]
+
+    def write(name, rows):
+        with open(ds / name, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
+
+    write(
+        "genomes.csv",
+        [
+            {"assembly_accession": f"GCF_{t}.1", "ncbi_taxid": t, "species_taxid": t}
+            | {"sequence_file": str(fa), "extra_files": str(report)}
+            for t in taxa
+        ],
+    )
+    lineage = {
+        "kingdom": "Metazoa",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "lineage_taxids": "1",
+    }
+    write(
+        "species.csv",
+        [
+            {
+                "ncbi_taxid": t,
+                "scientific_name": f"G{t} s{t}",
+                "order": "O",
+                "family": "F",
+                "genus": f"G{t}",
+            }
+            | lineage
+            for t in taxa
+        ],
+    )
+    write(
+        "images.csv",
+        [{"image_id": f"{t}_{k}", "file": f"{t}_{k}.jpg"} for t in taxa for k in range(5)],
+    )
+    write(
+        "pairs.csv",
+        [
+            {"image_id": f"{t}_{k}", "assembly_accession": f"GCF_{t}.1", "ncbi_taxid": t}
+            for t in taxa
+            for k in range(5)
+        ],
+    )
+
+    def run(control):
+        out = tmp_path / control
+        prepare_records(ds, out, genome_cache=tmp_path / "packed", dna_control=control)
+        with open(out / "records.csv", newline="") as f:
+            return list(csv.DictReader(f))
+
+    plain, perm = run("none"), run("permute_genomes")
+    assert [(r["processid"], r["split"]) for r in plain] == [
+        (r["processid"], r["split"]) for r in perm
+    ]
+    got = {r["ncbi_taxid"]: r["genome"].rsplit("_", 1)[-1] for r in perm}
+    assert all(got[t] != f"{t}.1" for t in taxa)  # nobody keeps their own genome
+    assert len(set(got.values())) == len(taxa)  # and no two share one
+    assert all(len({r["genome"] for r in perm if r["ncbi_taxid"] == t}) == 1 for t in taxa)

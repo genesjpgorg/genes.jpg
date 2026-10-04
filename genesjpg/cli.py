@@ -32,6 +32,12 @@ def _load(data: str):
     return recs, emb, index
 
 
+def _dna_control(data: str) -> str:
+    """The run's DNA control experiment, as recorded by ``prepare`` (``none`` for older or BIOSCAN runs)."""
+    meta = Path(data) / "prepare.json"
+    return json.loads(meta.read_text()).get("dna_control", "none") if meta.exists() else "none"
+
+
 def _split(recs, emb, index, split):
     """Records of one split with their image and taxonomy-text embeddings (row-aligned)."""
     rs = [r for r in recs if r["split"] == split and r["processid"] in index]
@@ -55,6 +61,8 @@ def cmd_prepare(a):
         val_frac=a.val_frac,
         seed=a.seed,
         genome_cache=a.genome_cache,
+        workers=a.workers,
+        dna_control=a.dna_control,
     )
 
 
@@ -112,7 +120,10 @@ def cmd_train_align(a):
     train, img, txt = _split(recs, emb, index, "train")
     evals = _eval_sets(recs, emb, index)
     pooled = _pooled_gallery(evals)
-    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers))
+    shuffle = _dna_control(a.data) == "shuffle_tokens"
+    if shuffle:
+        print("DNA control: token order shuffled in every window")
+    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers, shuffle_tokens=shuffle))
 
     def eval_fn(m):
         out = {}
@@ -138,8 +149,10 @@ def cmd_train_align(a):
         seed=a.seed,
         sample_dna=window_sampler(train, seed=a.seed) if genome else None,
     )
-    save_align(model.cpu(), ckpt / "align.pt")
-    metrics = eval_fn(model)
+    save_align(
+        model.cpu(), ckpt / "align.pt"
+    )  # save first, so a failing final eval cannot lose the run
+    metrics = eval_fn(model.to(a.device))  # back on the training device: on CPU this takes hours
     (ckpt / "align_metrics.json").write_text(json.dumps(metrics, indent=2))
     print(json.dumps(metrics, indent=2))
 
@@ -261,6 +274,76 @@ def cmd_generate(a):
     print(f"saved {a.n} images to {out}")
 
 
+def cmd_evaluate(a):
+    """Score baselines and trained steps on held-out species; writes evaluation.json (see genesjpg.evaluate)."""
+    import csv
+
+    from . import evaluate as ev
+
+    root, ckpt = _paths(a.data)
+    recs, emb, index = _load(a.data)
+    table = ev.species_table(recs, emb, index)
+    tests = None
+    if (
+        root / "unseen_species.csv"
+    ).exists():  # optional taxid -> test-name map written with the split
+        with open(root / "unseen_species.csv", newline="") as f:
+            tests = {r["ncbi_taxid"]: r["test"] for r in csv.DictReader(f) if r.get("test")}
+    groups = ev.held_out_groups(table, tests)
+    targets = sorted({t for g in groups.values() for t in g})
+    genome = bool(next(iter(table.values()))["rec"].get("genome"))
+    methods: dict[str, dict] = {}
+    methods["chance"] = {g: ev.chance(ts, table) for g, ts in groups.items()}
+    if genome and "kmer_nn" in a.methods:
+        q, nearest = ev.kmer_nn_queries(table, targets)
+        methods["kmer_nn"] = {g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()}
+        (root / "kmer_nearest.json").write_text(
+            json.dumps(
+                {
+                    table[t]["ranks"]["species"]: table[n]["ranks"]["species"]
+                    for t, n in nearest.items()
+                },
+                indent=1,
+            )
+        )
+    if "captions" in a.methods:
+        from .encoders import BioCLIP
+
+        clip = BioCLIP(device=a.device)
+        for rank in ev.RANKS:
+            q = ev.caption_queries(table, targets, clip, rank)
+            methods[f"caption_{rank}"] = {
+                g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
+            }
+        del clip
+    if genome and "frozen_linear" in a.methods:
+        shuffle = _dna_control(a.data) == "shuffle_tokens"
+        q = ev.frozen_linear_queries(table, targets, a.device, shuffle_tokens=shuffle)
+        methods["frozen_linear"] = {
+            g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
+        }
+    if (ckpt / "align.pt").exists() and "model" in a.methods:
+        from .pipeline import load_align, load_prior
+
+        align = load_align(ckpt / "align.pt").to(a.device)
+        prior = load_prior(ckpt / "prior.pt").to(a.device) if (ckpt / "prior.pt").exists() else None
+        aligned, sampled = ev.model_queries(table, targets, align, prior)
+        methods["aligned"] = {
+            g: ev.score({t: aligned[t] for t in ts}, table) for g, ts in groups.items()
+        }
+        if sampled:
+            methods["prior"] = {
+                g: ev.score({t: sampled[t] for t in ts}, table) for g, ts in groups.items()
+            }
+    out = {"groups": {g: len(ts) for g, ts in groups.items()}, "methods": methods}
+    (root / "evaluation.json").write_text(json.dumps(out, indent=2))
+    cols = [f"{r}_top1" for r in ev.RANKS]
+    for g, n in out["groups"].items():
+        print(f"\n{g} ({n} species): top-1 at " + " / ".join(ev.RANKS))
+        for m, res in methods.items():
+            print(f"  {m:16s} " + "  ".join(f"{res[g][c]:.2f}" for c in cols))
+
+
 def main(argv=None):
     """Parse arguments and run one pipeline command."""
     p = argparse.ArgumentParser(prog="genesjpg")
@@ -282,6 +365,13 @@ def main(argv=None):
         "--unseen", type=int, nargs="*", default=[], help="species taxids held out as val_unseen"
     )
     s.add_argument("--val-frac", type=float, default=0.2)
+    s.add_argument("--workers", type=int, default=8, help="parallel genome packing processes")
+    s.add_argument(
+        "--dna-control",
+        choices=["none", "shuffle_tokens", "permute_genomes"],
+        default="none",
+        help="control experiment: shuffle token order in every window, or give species each other's genomes",
+    )
     s.add_argument(
         "--genome-cache",
         default=None,
@@ -331,6 +421,15 @@ def main(argv=None):
     s.add_argument("--max-steps", type=int, default=None)
     s.add_argument("--include-unseen", action="store_true", help="also train on val_unseen photos")
     s.set_defaults(fn=cmd_train_decoder)
+
+    s = sub.add_parser("evaluate")
+    s.add_argument(
+        "--methods",
+        nargs="*",
+        default=["kmer_nn", "captions", "frozen_linear", "model"],
+        help="chance always runs",
+    )
+    s.set_defaults(fn=cmd_evaluate)
 
     s = sub.add_parser("generate")
     g = s.add_mutually_exclusive_group(required=True)

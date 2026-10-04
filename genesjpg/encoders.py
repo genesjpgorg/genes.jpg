@@ -20,11 +20,12 @@ BIOCLIP = "hf-hub:imageomics/bioclip"
 class HFTokenizer:
     """Wraps a Hugging Face tokenizer (e.g. GENA-LM's 32k DNA BPE) to return (input_ids, attention_mask)."""
 
-    def __init__(self, model_id: str, max_len: int = 1024):
+    def __init__(self, model_id: str, max_len: int = 1024, shuffle: bool = False):
         from transformers import AutoTokenizer
 
         self.tok = AutoTokenizer.from_pretrained(model_id)
         self.max_len = max_len
+        self.shuffle = shuffle  # control experiment: destroy token order, keep token composition
 
     def __call__(self, seqs: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
         """Tokenise DNA strings (upper-cased, [CLS] ... [SEP], padded to the longest, truncated to max_len)."""
@@ -35,7 +36,26 @@ class HFTokenizer:
             max_length=self.max_len,
             return_tensors="pt",
         )
-        return enc["input_ids"], enc["attention_mask"]
+        ids, mask = enc["input_ids"], enc["attention_mask"]
+        if self.shuffle:
+            ids = shuffle_tokens(ids, mask, seqs)
+        return ids, mask
+
+
+def shuffle_tokens(ids: torch.Tensor, mask: torch.Tensor, seqs: list[str]) -> torch.Tensor:
+    """Randomly permute each sequence's tokens between [CLS] and [SEP] (padding untouched).
+
+    The permutation is seeded by the sequence itself, so a given window always gets the same shuffle: training
+    windows are random anyway, and the fixed evaluation windows of a genome keep a stable embedding."""
+    import zlib
+
+    ids = ids.clone()
+    for i, s in enumerate(seqs):
+        n = int(mask[i].sum())
+        g = torch.Generator().manual_seed(zlib.crc32(s.encode()))
+        perm = torch.randperm(n - 2, generator=g) + 1
+        ids[i, 1 : n - 1] = ids[i, perm]
+    return ids
 
 
 class DNAEncoder(nn.Module):
@@ -46,6 +66,7 @@ class DNAEncoder(nn.Module):
         tokenizer: callable returning (input_ids, attention_mask); defaults to ModernGENA's tokenizer.
         embed_dim: output size (BioCLIP's embedding size).
         freeze_layers: freeze the token embeddings and the first N transformer layers (cheaper CPU training).
+        shuffle_tokens: control experiment; shuffle token order inside every window (see ``shuffle_tokens``).
     """
 
     def __init__(
@@ -54,6 +75,7 @@ class DNAEncoder(nn.Module):
         tokenizer: HFTokenizer | None = None,
         embed_dim: int = 512,
         freeze_layers: int = 0,
+        shuffle_tokens: bool = False,
     ):
         super().__init__()
         if backbone is None:
@@ -61,7 +83,7 @@ class DNAEncoder(nn.Module):
 
             backbone = AutoModel.from_pretrained(MODERNGENA)
         self.backbone = backbone
-        self.tokenizer = tokenizer or HFTokenizer(MODERNGENA)
+        self.tokenizer = tokenizer or HFTokenizer(MODERNGENA, shuffle=shuffle_tokens)
         hidden = backbone.config.hidden_size
         self.head = nn.Sequential(
             nn.Linear(hidden, hidden), nn.GELU(), nn.Linear(hidden, embed_dim)
