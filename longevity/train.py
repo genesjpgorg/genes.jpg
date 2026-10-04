@@ -188,7 +188,7 @@ def evaluate(model, df: pd.DataFrame, ids: list[np.ndarray], mu: float, sd: floa
     rng = random.Random(0)
     preds = np.zeros(len(df), dtype=np.float32)
     lengths = df.n_tokens.to_numpy()
-    chunk = args.long_inputs == "chunk"
+    chunk = getattr(args, "long_inputs", "crop") == "chunk"
     for b in make_batches(lengths, args.eval_tokens_per_batch, args.max_len, False, rng, chunk):
         inp, mask, gidx = collate([ids[i] for i in b], args.max_len, False, rng, chunk,
                                   encoded="chunk_id" in df)
@@ -435,7 +435,8 @@ def _main(argv, stack) -> None:
                   total_steps=total_steps, warmup_steps=warmup,
                   split={k: sorted(v.ncbi_taxid.unique().tolist()) for k, v in parts.items()})
     if spec:
-        if config["split"] != spec["split"]:
+        splits = {k: config["split"].get(k, []) for k in ("train", "val", "test")}
+        if splits != spec["split"] or not set(config["split"].get("val_sub", [])) <= set(splits["val"]):
             ap.error("effective species splits differ from CDS reference")
         (args.out / "comparison.json").write_text(json.dumps(spec, indent=2))
     (args.out / "config.json").write_text(json.dumps(config, indent=2))

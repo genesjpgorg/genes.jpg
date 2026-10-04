@@ -132,7 +132,8 @@ def test_training_enforces_comparison(reference, tmp_path, monkeypatch, budget):
         main([*argv, "--lr-encoder", "0.01"])
     main(argv)
     cfg = json.loads((tmp_path / "run/config.json").read_text())
-    assert cfg["split"] == spec["split"]
+    assert {k: cfg["split"][k] for k in ("train", "val", "test")} == spec["split"]
+    assert set(cfg["split"].get("val_sub", [])) <= set(cfg["split"]["val"])
     assert (cfg["mu"], cfg["sd"]) == (spec["mu"], spec["sd"])
     assert cfg["comparison_sha256"] == spec["sha256"]
     assert cfg["epochs"] == 18 and cfg["max_len"] == 1024
@@ -145,11 +146,14 @@ def test_training_enforces_comparison(reference, tmp_path, monkeypatch, budget):
     assert cfg["warmup_steps"] == (max(1, int(0.05 * expected_steps)) if budget == "epochs" else 1)
     validations = [r for r in metrics if r["kind"] == "val"]
     if budget == "epochs":
-        assert len(validations) == (expected_steps - 1) // 100 + 1
-        assert all(r["n_pairs"] == 50 for r in validations[:-1])
-        assert validations[-1]["n_pairs"] == 1000
+        # Periodic evals run on the capped val_sub sample (kind "val"); the final
+        # full-set eval is recorded separately as "val_full".
+        assert len(validations) == (expected_steps - 1) // 100
+        assert all(r["n_pairs"] == 50 for r in validations)
+        finals = [r for r in metrics if r["kind"] == "val_full"]
+        assert len(finals) == 1 and finals[0]["n_pairs"] == 1000
         saved = torch.load(tmp_path / "run/best.pt", weights_only=False)
-        assert saved["val_mae_log10"] == min(r["species_mae_log10"] for r in validations[:-1])
+        assert saved["val_species_mae_log10"] == min(r["species_mae_log10"] for r in validations)
     else:
         assert len(validations) == 18
     # Correct shape and labels alone cannot pass off shards from a different protocol.
