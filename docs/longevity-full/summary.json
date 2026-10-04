@@ -1,0 +1,224 @@
+{
+ "run": "/mnt/filesystem-c8/genes.jpg/runs/longevity-agingatlas-all-genomic-10ep",
+ "data": "/mnt/filesystem-c8/genes.jpg/datasets/_longevity_genes/agingatlas_all/pairs_genomic.parquet",
+ "steps_per_epoch": 14959,
+ "total_steps": 149590,
+ "best_step": 76000,
+ "best_epoch": 5.081,
+ "best_val_sample": {
+  "step": 76000,
+  "species_mae_log10": 0.177704195237195,
+  "species_spearman": 0.6844016837361996
+ },
+ "final": {
+  "val_full": {
+   "kind": "val_full",
+   "step": 76000,
+   "epoch": 5.081,
+   "seconds": 411.0,
+   "pair_mse_z": 0.683360647626179,
+   "pair_mae_log10": 0.19529938804833952,
+   "species_mae_log10": 0.17624209116264758,
+   "baseline_species_mae_log10": 0.2625027163613735,
+   "n_species": 335,
+   "n_pairs": 154745,
+   "species_spearman": 0.6994078775483774,
+   "species_pearson": 0.7188883054883263
+  },
+  "test": {
+   "kind": "test",
+   "step": 76000,
+   "epoch": 5.081,
+   "seconds": 368.8,
+   "pair_mse_z": 0.6617269675695945,
+   "pair_mae_log10": 0.2086153833731289,
+   "species_mae_log10": 0.1807457765300245,
+   "baseline_species_mae_log10": 0.2577775695257127,
+   "n_species": 294,
+   "n_pairs": 137063,
+   "species_spearman": 0.6621030495118856,
+   "species_pearson": 0.6722520572478596
+  }
+ },
+ "species_level": {
+  "val": {
+   "n_species": 335,
+   "n_orders_in_train": 312,
+   "model": {
+    "mae": 0.17624209116264758,
+    "spearman": 0.6994078775483774,
+    "pearson": 0.7188883054883264
+   },
+   "train_mean": {
+    "mae": 0.2625027163613735,
+    "spearman": NaN,
+    "pearson": NaN
+   },
+   "class_mean": {
+    "mae": 0.259841071531834,
+    "spearman": 0.14402294783418268,
+    "pearson": 0.1094503839819491
+   },
+   "order_mean": {
+    "mae": 0.23344571785165721,
+    "spearman": 0.5673671232499221,
+    "pearson": 0.5599208892057923
+   },
+   "by_class": {
+    "Actinopteri": {
+     "n": 71,
+     "model_mae": 0.2980093650347225,
+     "class_mean_mae": 0.37393117709209567,
+     "order_mean_mae": 0.35142371673547357,
+     "spearman_within": 0.548029733816112,
+     "order_mean_spearman_within": 0.2179256571325037,
+     "true_sd": 0.4632434008814635,
+     "pred_sd": 0.1637732833623886
+    },
+    "Aves": {
+     "n": 119,
+     "model_mae": 0.14035606962170602,
+     "class_mean_mae": 0.23548301909832925,
+     "order_mean_mae": 0.18267229681161637,
+     "spearman_within": 0.7417137899004518,
+     "order_mean_spearman_within": 0.7453389103215844,
+     "true_sd": 0.2758821293142403,
+     "pred_sd": 0.1529226452112198
+    },
+    "Chondrichthyes": {
+     "n": 6,
+     "model_mae": 0.31333664902946856,
+     "class_mean_mae": 0.38387441555735463,
+     "order_mean_mae": 0.28444538476793163,
+     "spearman_within": 0.5428571428571429,
+     "order_mean_spearman_within": 0.6546536707079772,
+     "true_sd": 0.5304286385747288,
+     "pred_sd": 0.16164511442184448
+    },
+    "Lepidosauria": {
+     "n": 15,
+     "model_mae": 0.21487147315954988,
+     "class_mean_mae": 0.24056591303247105,
+     "order_mean_mae": 0.24056591303247105,
+     "spearman_within": 0.4392857142857142,
+     "order_mean_spearman_within": NaN,
+     "true_sd": 0.30186542992105136,
+     "pred_sd": 0.11892154812812805
+    },
+    "Mammalia": {
+     "n": 117,
+     "model_mae": 0.11851834003754226,
+     "class_mean_mae": 0.20771246547301217,
+     "order_mean_mae": 0.2049450867821472,
+     "spearman_within": 0.6641738078120445,
+     "order_mean_spearman_within": 0.5611042101493919,
+     "true_sd": 0.2932912400225083,
+     "pred_sd": 0.2530137002468109
+    },
+    "NA": {
+     "n": 7,
+     "model_mae": 0.315760794439447,
+     "class_mean_mae": 0.3230103525358262,
+     "order_mean_mae": 0.31735601627119,
+     "spearman_within": -0.3214285714285715,
+     "order_mean_spearman_within": NaN,
+     "true_sd": 0.20593560249155585,
+     "pred_sd": 0.051409654319286346
+    }
+   }
+  },
+  "test": {
+   "n_species": 294,
+   "n_orders_in_train": 243,
+   "model": {
+    "mae": 0.1807457765300245,
+    "spearman": 0.6621030495118856,
+    "pearson": 0.6722520572478596
+   },
+   "train_mean": {
+    "mae": 0.2577775695257127,
+    "spearman": NaN,
+    "pearson": NaN
+   },
+   "class_mean": {
+    "mae": 0.24737695687201697,
+    "spearman": 0.31037934492140196,
+    "pearson": 0.2535908183773764
+   },
+   "order_mean": {
+    "mae": 0.2039966815142081,
+    "spearman": 0.5336956712404265,
+    "pearson": 0.5424393564269998
+   },
+   "by_class": {
+    "Actinopteri": {
+     "n": 59,
+     "model_mae": 0.2464712161990007,
+     "class_mean_mae": 0.3402364342140434,
+     "order_mean_mae": 0.33384506986190277,
+     "spearman_within": 0.6590367368788472,
+     "order_mean_spearman_within": 0.2531533083678267,
+     "true_sd": 0.40452337121780974,
+     "pred_sd": 0.16314703226089478
+    },
+    "Aves": {
+     "n": 116,
+     "model_mae": 0.17008610645494923,
+     "class_mean_mae": 0.21215250889600953,
+     "order_mean_mae": 0.17057150048958272,
+     "spearman_within": 0.5346622205756366,
+     "order_mean_spearman_within": 0.3726760838356295,
+     "true_sd": 0.2339688989119096,
+     "pred_sd": 0.10845094174146652
+    },
+    "Chondrichthyes": {
+     "n": 6,
+     "model_mae": 0.2576436236653289,
+     "class_mean_mae": 0.17425728043592856,
+     "order_mean_mae": 0.2186721475282287,
+     "spearman_within": -0.23190841426097936,
+     "order_mean_spearman_within": 0.8060599359358183,
+     "true_sd": 0.21170578924298317,
+     "pred_sd": 0.17936693131923676
+    },
+    "Lepidosauria": {
+     "n": 23,
+     "model_mae": 0.20010953717047286,
+     "class_mean_mae": 0.20344451357532595,
+     "order_mean_mae": 0.20344451357532595,
+     "spearman_within": 0.2855731225296443,
+     "order_mean_spearman_within": NaN,
+     "true_sd": 0.2717277535689194,
+     "pred_sd": 0.04779764637351036
+    },
+    "Mammalia": {
+     "n": 83,
+     "model_mae": 0.14002660888200666,
+     "class_mean_mae": 0.25328994168095476,
+     "order_mean_mae": 0.15971689194341487,
+     "spearman_within": 0.7921955938495026,
+     "order_mean_spearman_within": 0.6471513933665863,
+     "true_sd": 0.29155451298492585,
+     "pred_sd": 0.2002897411584854
+    },
+    "NA": {
+     "n": 7,
+     "model_mae": 0.1566969373132357,
+     "class_mean_mae": 0.1853360022057153,
+     "order_mean_mae": 0.17773035111828836,
+     "spearman_within": 0.10714285714285716,
+     "order_mean_spearman_within": 0.8660254037844387,
+     "true_sd": 0.187063588703172,
+     "pred_sd": 0.07249385118484497
+    }
+   }
+  }
+ },
+ "train": {
+  "first_loss": 1.0188102764591898,
+  "last_loss": 0.23638774475123936,
+  "loss_at_best": 0.32137213336973103,
+  "tok_per_s_median": 119721.8822261655,
+  "hours": 12.175271446373728
+ }
+}

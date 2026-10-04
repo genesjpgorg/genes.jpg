@@ -38,7 +38,11 @@ def log(msg: str) -> None:
 
 
 class LongevityRegressor(nn.Module):
-    """ModernGENA encoder + 2-layer MLP on the [CLS] hidden state -> one scalar."""
+    """ModernGENA encoder + 2-layer MLP on the [CLS] hidden state -> one scalar.
+
+    A gene longer than the encoder window arrives as several windows; their [CLS] states are
+    averaged into one gene vector (gene_idx maps each window row to its gene) before the head.
+    """
 
     def __init__(self, attn: str = "kernels-community/flash-attn2", hidden: int = 256,
                  dropout: float = 0.1):
@@ -52,33 +56,51 @@ class LongevityRegressor(nn.Module):
         self.head = nn.Sequential(nn.Linear(d, hidden), nn.GELU(), nn.Dropout(dropout),
                                   nn.Linear(hidden, 1))
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
-        h = self.backbone(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
-        return self.head(h[:, 0]).squeeze(-1)
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor,
+                gene_idx: torch.Tensor | None = None, n_genes: int | None = None) -> torch.Tensor:
+        cls = self.backbone(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state[:, 0]
+        if gene_idx is not None:
+            pooled = cls.new_zeros(n_genes, cls.shape[-1]).index_add_(0, gene_idx, cls)
+            counts = torch.bincount(gene_idx, minlength=n_genes).clamp(min=1).unsqueeze(-1)
+            cls = pooled / counts.to(cls.dtype)
+        return self.head(cls).squeeze(-1)
 
 
 # ---------------------------------------------------------------- data
 
 
+def n_windows(lengths: np.ndarray, max_len: int, chunk: bool) -> np.ndarray:
+    """Encoder windows per gene: all of it in --long-inputs chunk mode, else one (cropped)."""
+    return np.maximum(1, -(-lengths // (max_len - 2))) if chunk else np.ones_like(lengths)
+
+
+def window_len(lengths: np.ndarray, max_len: int, chunk: bool) -> np.ndarray:
+    """Padded length of a gene's longest window (windows are equal-sized splits)."""
+    k = n_windows(lengths, max_len, chunk)
+    return np.minimum(-(-lengths // k) + 2, max_len)
+
+
 def make_batches(lengths: np.ndarray, tokens_per_batch: int, max_len: int, shuffle: bool,
-                 rng: random.Random) -> list[list[int]]:
-    """Length-bucketed batches whose padded size (rows x longest) stays under tokens_per_batch."""
+                 rng: random.Random, chunk: bool = False) -> list[list[int]]:
+    """Length-bucketed batches of genes whose padded size (windows x longest window) stays
+    under tokens_per_batch."""
     idx = list(range(len(lengths)))
     if shuffle:
         rng.shuffle(idx)
-    lens = np.minimum(lengths + 2, max_len)
+    lens = window_len(lengths, max_len, chunk)
+    wins = n_windows(lengths, max_len, chunk)
     chunk = 8192  # sort within large chunks: little padding, still random across epochs
     batches = []
     for c in range(0, len(idx), chunk):
         part = sorted(idx[c : c + chunk], key=lambda i: lens[i])
-        cur, longest = [], 0
+        cur, longest, rows = [], 0, 0
         for i in part:
             longest_new = max(longest, lens[i])
-            if cur and longest_new * (len(cur) + 1) > tokens_per_batch:
+            if cur and longest_new * (rows + wins[i]) > tokens_per_batch:
                 batches.append(cur)
-                cur, longest_new = [], lens[i]
+                cur, longest_new, rows = [], lens[i], 0
             cur.append(i)
-            longest = longest_new
+            longest, rows = longest_new, rows + wins[i]
         if cur:
             batches.append(cur)
     if shuffle:
@@ -86,21 +108,41 @@ def make_batches(lengths: np.ndarray, tokens_per_batch: int, max_len: int, shuff
     return batches
 
 
-def collate(ids: list[np.ndarray], max_len: int, train: bool, rng: random.Random):
+def collate(ids: list[np.ndarray], max_len: int, train: bool, rng: random.Random,
+            chunk: bool = False):
+    """Token rows for a batch of genes plus the gene index of each row.
+
+    chunk: a gene longer than max_len-2 tokens is split into k equal windows covering all of it.
+    Otherwise it is cropped to one window (random in training, first at evaluation).
+    """
     body = max_len - 2
-    rows = []
-    for x in ids:
-        if len(x) > body:
+    rows, gene_idx = [], []
+    for g, x in enumerate(ids):
+        if len(x) > body and chunk:
+            k = -(-len(x) // body)
+            step = -(-len(x) // k)
+            parts = [x[s : s + step] for s in range(0, len(x), step)]
+        elif len(x) > body:
             s = rng.randrange(len(x) - body + 1) if train else 0
-            x = x[s : s + body]
-        rows.append([CLS, *x.tolist(), SEP])
+            parts = [x[s : s + body]]
+        else:
+            parts = [x]
+        for part in parts:
+            rows.append([CLS, *part.tolist(), SEP])
+            gene_idx.append(g)
     L = max(map(len, rows))
     inp = torch.full((len(rows), L), PAD, dtype=torch.long)
     mask = torch.zeros((len(rows), L), dtype=torch.long)
     for r, row in enumerate(rows):
         inp[r, : len(row)] = torch.tensor(row)
         mask[r, : len(row)] = 1
-    return inp, mask
+    return inp, mask, torch.tensor(gene_idx, dtype=torch.long)
+
+
+def genes_per_species(df: pd.DataFrame, n: int, seed: int) -> pd.DataFrame:
+    """A fixed random sample of at most n genes per species."""
+    return (df.sample(frac=1, random_state=seed).groupby("ncbi_taxid").head(n)
+              .sort_values(["ncbi_taxid", "entrez_id"]).reset_index(drop=True))
 
 
 def group_split(df: pd.DataFrame, by: str, val_frac: float, test_frac: float,
@@ -134,10 +176,12 @@ def evaluate(model, df: pd.DataFrame, ids: list[np.ndarray], mu: float, sd: floa
     rng = random.Random(0)
     preds = np.zeros(len(df), dtype=np.float32)
     lengths = np.array([len(x) for x in ids])
-    for b in make_batches(lengths, args.eval_tokens_per_batch, args.max_len, False, rng):
-        inp, mask = collate([ids[i] for i in b], args.max_len, False, rng)
+    chunk = args.long_inputs == "chunk"
+    for b in make_batches(lengths, args.eval_tokens_per_batch, args.max_len, False, rng, chunk):
+        inp, mask, gidx = collate([ids[i] for i in b], args.max_len, False, rng, chunk)
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            out = model(inp.to(device, non_blocking=True), mask.to(device, non_blocking=True))
+            out = model(inp.to(device, non_blocking=True), mask.to(device, non_blocking=True),
+                        gidx.to(device, non_blocking=True), len(b))
         preds[b] = out.float().cpu().numpy()
     model.train()
     df = df[["ncbi_taxid", "scientific_name", "class", "entrez_id", "hgnc_symbol",
@@ -179,7 +223,10 @@ def main() -> None:
     ap.add_argument("--epochs", type=float, default=3)
     ap.add_argument("--max-steps", type=int, default=0, help="stop after N steps (smoke test)")
     ap.add_argument("--time-budget-min", type=float, default=0, help="stop training after N minutes")
-    ap.add_argument("--max-len", type=int, default=1024)
+    ap.add_argument("--max-len", type=int, default=1024, help="encoder window in tokens")
+    ap.add_argument("--long-inputs", choices=["chunk", "crop"], default="crop",
+                    help="genes longer than the window: split into windows and average their "
+                         "[CLS] (chunk, whole gene used) or crop to one window (crop)")
     ap.add_argument("--tokens-per-batch", type=int, default=32768)
     ap.add_argument("--eval-tokens-per-batch", type=int, default=131072)
     ap.add_argument("--lr-encoder", type=float, default=3e-5)
@@ -193,6 +240,13 @@ def main() -> None:
     ap.add_argument("--attn", default="kernels-community/flash-attn2")
     ap.add_argument("--compile", action="store_true")
     ap.add_argument("--evals-per-epoch", type=int, default=1)
+    ap.add_argument("--eval-every-steps", type=int, default=0, help="overrides --evals-per-epoch")
+    ap.add_argument("--eval-genes-per-species", type=int, default=0,
+                    help="periodic val on a fixed sample of N genes per species (0 = all genes)")
+    ap.add_argument("--final-eval-genes-per-species", type=int, default=0,
+                    help="cap genes per species in the final val/test evaluation (0 = all)")
+    ap.add_argument("--save-best", action="store_true",
+                    help="keep best.pt by periodic val species MAE and run final val/test with it")
     ap.add_argument("--log-every", type=int, default=20)
     ap.add_argument("--no-save", action="store_true", help="skip writing model weights")
     ap.add_argument("--seed", type=int, default=0)
@@ -208,18 +262,35 @@ def main() -> None:
 
     # ---- data and species split
     df = pd.read_parquet(args.data)
+    for col in ("class", "order", "family"):  # NCBI has no class for turtles/crocodilians etc.
+        if col in df:
+            df[col] = df[col].fillna("NA")
     df = df[~df.ncbi_taxid.isin(args.exclude_species)].reset_index(drop=True)
     if args.min_genes:
         n = df.groupby("ncbi_taxid").entrez_id.transform("size")
         log(f"dropping {df[n < args.min_genes].ncbi_taxid.nunique()} species with < {args.min_genes} genes")
         df = df[n >= args.min_genes].reset_index(drop=True)
-    if not args.val_species and not args.test_species and args.val_frac + args.test_frac > 0:
+    if not args.val_species and not args.test_species and "split" in df and not args.val_frac:
+        # splits precomputed by longevity.prepare
+        sp = df.groupby("ncbi_taxid").split.first()
+        args.val_species = sorted(map(int, sp.index[sp == "val"]))
+        args.test_species = sorted(map(int, sp.index[sp == "test"]))
+        log(f"using the dataset's split column: {len(args.val_species)} val / "
+            f"{len(args.test_species)} test species")
+    elif not args.val_species and not args.test_species and args.val_frac + args.test_frac > 0:
         args.val_species, args.test_species = group_split(df, args.split_by, args.val_frac,
                                                           args.test_frac, args.seed)
     held = set(args.val_species) | set(args.test_species)
     parts = {"train": df[~df.ncbi_taxid.isin(held)], "val": df[df.ncbi_taxid.isin(args.val_species)],
              "test": df[df.ncbi_taxid.isin(args.test_species)]}
     parts = {k: v.reset_index(drop=True) for k, v in parts.items()}
+    if args.final_eval_genes_per_species:
+        for k in ("val", "test"):  # cap genes per species for the final evaluations too
+            if not parts[k].empty:
+                parts[k] = genes_per_species(parts[k], args.final_eval_genes_per_species, args.seed)
+    if args.eval_genes_per_species and not parts["val"].empty:
+        # fixed per-species gene sample for frequent, cheap validation; final evals use everything
+        parts["val_sub"] = genes_per_species(parts["val"], args.eval_genes_per_species, args.seed)
     ids = {k: [np.asarray(x, dtype=np.int32) for x in v.input_ids] for k, v in parts.items()}
     tr = parts["train"]
     # target scaling from species-level values so species with many genes don't dominate
@@ -228,8 +299,11 @@ def main() -> None:
     sd = float(sp_y.std()) if len(sp_y) > 1 and sp_y.std() > 0 else 1.0
     y_train = torch.tensor(((tr.log10_longevity - mu) / sd).values, dtype=torch.float32)
     for k, v in parts.items():
-        log(f"{k}: {v.ncbi_taxid.nunique()} species, {len(v)} pairs, "
-            f"{int(v.n_tokens.clip(upper=args.max_len - 2).sum() + 2 * len(v)):,} tokens")
+        lens = v.n_tokens.to_numpy()
+        wins = n_windows(lens, args.max_len, args.long_inputs == "chunk")
+        used = lens if args.long_inputs == "chunk" else np.minimum(lens, args.max_len - 2)
+        log(f"{k}: {v.ncbi_taxid.nunique()} species, {len(v)} pairs, {int(wins.sum())} windows, "
+            f"{int(used.sum() + 2 * wins.sum()):,} tokens")
     log(f"target log10 longevity: mu={mu:.3f} sd={sd:.3f}")
 
     # ---- model and optimiser
@@ -248,13 +322,16 @@ def main() -> None:
     fwd = torch.compile(model) if args.compile else model
 
     lengths = np.array([len(x) for x in ids["train"]])
+    chunk = args.long_inputs == "chunk"
     steps_per_epoch = len(make_batches(lengths, args.tokens_per_batch, args.max_len, True,
-                                       random.Random(0)))
+                                       random.Random(0), chunk))
     total_steps = max(1, math.ceil(steps_per_epoch * args.epochs))
     if args.max_steps:
         total_steps = min(total_steps, args.max_steps)
     warmup = max(1, int(args.warmup * total_steps))
-    eval_every = max(1, steps_per_epoch // args.evals_per_epoch)
+    eval_every = args.eval_every_steps or max(1, steps_per_epoch // args.evals_per_epoch)
+    periodic = "val_sub" if "val_sub" in parts else "val"
+    best = {"mae": float("inf"), "step": None}
 
     def lr_scale(step: int) -> float:
         if step < warmup:
@@ -276,20 +353,22 @@ def main() -> None:
         metrics_f.write(json.dumps(rec) + "\n")
         metrics_f.flush()
 
-    def run_eval(step: int, epoch: float, split: str = "val") -> None:
+    def run_eval(step: int, epoch: float, split: str = "val", kind: str | None = None):
         if parts[split].empty:
-            return
+            return None
         t0 = time.time()
         m, preds = evaluate(model, parts[split], ids[split], mu, sd, args, device)
-        preds.to_parquet(args.out / f"predictions_{split}.parquet")
+        preds.to_parquet(args.out / f"predictions_{kind or split}.parquet")
         species = m.pop("species")
-        write(dict(kind=split, step=step, epoch=round(epoch, 3), seconds=round(time.time() - t0, 1),
-                   **m, species=species))
+        write(dict(kind=kind or split, step=step, epoch=round(epoch, 3),
+                   seconds=round(time.time() - t0, 1), **m, species=species))
         log(f"{split} step {step}: " + " ".join(f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
                                               for k, v in m.items()) + f" ({time.time() - t0:.0f}s)")
-        for s in species:
-            log(f"    {s['scientific_name']:<28} true {10 ** s['true_log10']:7.2f} yrs  "
-                f"pred {10 ** s['pred_log10']:7.2f} yrs  ({s['n_genes']} genes)")
+        if len(species) <= 30:
+            for s in species:
+                log(f"    {s['scientific_name']:<28} true {10 ** s['true_log10']:7.2f} yrs  "
+                    f"pred {10 ** s['pred_log10']:7.2f} yrs  ({s['n_genes']} genes)")
+        return m
 
     # ---- train
     model.train()
@@ -297,14 +376,15 @@ def main() -> None:
     win_loss, win_n, win_tok, win_t = 0.0, 0, 0, time.time()
     epoch = 0
     while not done:
-        for b in make_batches(lengths, args.tokens_per_batch, args.max_len, True, rng):
+        for b in make_batches(lengths, args.tokens_per_batch, args.max_len, True, rng, chunk):
             for g, base in zip(opt.param_groups, base_lrs):
                 g["lr"] = base * lr_scale(step)
-            inp, mask = collate([ids["train"][i] for i in b], args.max_len, True, rng)
+            inp, mask, gidx = collate([ids["train"][i] for i in b], args.max_len, True, rng, chunk)
             inp, mask = inp.to(device, non_blocking=True), mask.to(device, non_blocking=True)
+            gidx = gidx.to(device, non_blocking=True)
             y = y_train[b].to(device, non_blocking=True)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                pred = fwd(inp, mask)
+                pred = fwd(inp, mask, gidx, len(b))
             loss = nn.functional.mse_loss(pred.float(), y)
             opt.zero_grad(set_to_none=True)
             loss.backward()
@@ -334,17 +414,26 @@ def main() -> None:
                 done = True
                 break
             if step % eval_every == 0:
-                run_eval(step, step / steps_per_epoch)
+                m = run_eval(step, step / steps_per_epoch, periodic, "val")
+                if args.save_best and m and m["species_mae_log10"] < best["mae"]:
+                    best.update(mae=m["species_mae_log10"], step=step)
+                    torch.save({"model": model.state_dict(), "config": config, "step": step,
+                                "val_species_mae_log10": best["mae"]}, args.out / "best.pt")
+                    log(f"new best val species MAE {best['mae']:.4f} at step {step} -> best.pt")
         epoch += 1
 
     train_min = (time.time() - t_start) / 60
     log(f"training finished: {step} steps in {train_min:.1f} min")
-    run_eval(step, step / steps_per_epoch, "val")
-    run_eval(step, step / steps_per_epoch, "test")
-    write(dict(kind="done", step=step, train_minutes=train_min))
     if not args.no_save:
         torch.save({"model": model.state_dict(), "config": config}, args.out / "model.pt")
         log(f"saved {args.out / 'model.pt'}")
+    if args.save_best and best["step"] is not None:
+        model.load_state_dict(torch.load(args.out / "best.pt", map_location=device)["model"])
+        log(f"final evaluation uses best.pt (step {best['step']}, val MAE {best['mae']:.4f})")
+    final_step = best["step"] if args.save_best and best["step"] is not None else step
+    run_eval(final_step, final_step / steps_per_epoch, "val", "val_full")
+    run_eval(final_step, final_step / steps_per_epoch, "test")
+    write(dict(kind="done", step=step, eval_step=final_step, train_minutes=train_min))
 
 
 if __name__ == "__main__":
