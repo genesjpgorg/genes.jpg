@@ -1,0 +1,17 @@
+model,alpha,inner_mse_log_years,selected
+fdr_genes_ridge,0.01,2.273654917990328,False
+fdr_genes_ridge,0.1,1.5135347415540321,False
+fdr_genes_ridge,1.0,0.9599254983263116,False
+fdr_genes_ridge,10.0,0.7121879522448789,False
+fdr_genes_ridge,100.0,0.6189187812522164,True
+fdr_genes_ridge,1000.0,0.6275458020995258,False
+fdr_genes_ridge,10000.0,0.6547537108744153,False
+fdr_genes_ridge,100000.0,0.6605567254297852,False
+all_genes_ridge,0.01,0.363534476794841,True
+all_genes_ridge,0.1,0.3635367073390173,False
+all_genes_ridge,1.0,0.3635591067543258,False
+all_genes_ridge,10.0,0.3637922182288377,False
+all_genes_ridge,100.0,0.3668143215646914,False
+all_genes_ridge,1000.0,0.4077441379469625,False
+all_genes_ridge,10000.0,0.5552736692682284,False
+all_genes_ridge,100000.0,0.6446837281539619,False

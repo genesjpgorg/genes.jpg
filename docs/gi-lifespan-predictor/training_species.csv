@@ -1,0 +1,48 @@
+ensembl_species,anage_name,anage_common_name,anage_order,max_longevity_yrs
+ailuropoda_melanoleuca,Ailuropoda melanoleuca,Giant panda,Carnivora,36.8
+balaenoptera_musculus,Balaenoptera musculus,Blue whale,Cetacea,110.0
+bos_grunniens,Bos grunniens,Yak,Artiodactyla,26.3
+callithrix_jacchus,Callithrix jacchus,White-tufted-ear marmoset,Primates,22.8
+camelus_dromedarius,Camelus dromedarius,Dromedary,Artiodactyla,28.4
+capra_hircus,Capra hircus,Domestic goat,Artiodactyla,20.8
+cavia_porcellus,Cavia porcellus,Guinea pig,Rodentia,12.0
+chinchilla_lanigera,Chinchilla lanigera,Long-tailed chinchilla,Rodentia,17.2
+dasypus_novemcinctus,Dasypus novemcinctus,Nine-banded armadillo,Cingulata,22.3
+delphinapterus_leucas,Delphinapterus leucas,Beluga,Cetacea,40.0
+dipodomys_ordii,Dipodomys ordii,Ord's kangaroo rat,Rodentia,9.9
+heterocephalus_glaber_female,Heterocephalus glaber,Naked mole-rat,Rodentia,31.0
+ictidomys_tridecemlineatus,Ictidomys tridecemlineatus,Thirteen-lined ground squirrel,Rodentia,7.9
+loxodonta_africana,Loxodonta africana,African bush elephant,Proboscidea,65.0
+macaca_fascicularis,Macaca fascicularis,Long-tailed macaque,Primates,39.0
+macaca_mulatta,Macaca mulatta,Rhesus monkey,Primates,40.0
+macaca_nemestrina,Macaca nemestrina,"Southern pig-tailed macaque, or Pigtail macaque",Primates,37.6
+mandrillus_leucophaeus,Mandrillus leucophaeus,Drill,Primates,39.0
+microcebus_murinus,Microcebus murinus,Gray mouse lemur,Primates,18.2
+microtus_ochrogaster,Microtus ochrogaster,Prairie vole,Rodentia,5.3
+monodelphis_domestica,Monodelphis domestica,Gray short-tailed opossum,Didelphimorphia,5.1
+monodon_monoceros,Monodon monoceros,Narwhal,Cetacea,50.0
+mus_musculus,Mus musculus,House mouse,Rodentia,4.0
+mus_spicilegus,Mus spicilegus,Mound-building mouse,Rodentia,3.5
+myotis_lucifugus,Myotis lucifugus,Little brown bat,Chiroptera,34.0
+neovison_vison,Neovison vison,American mink,Carnivora,11.4
+nomascus_leucogenys,Nomascus leucogenys,"Northern white-cheeked gibbon, or White-cheeked gibbon",Primates,44.1
+octodon_degus,Octodon degus,Degu,Rodentia,14.0
+ornithorhynchus_anatinus,Ornithorhynchus anatinus,Duck-billed platypus,Monotremata,22.6
+oryctolagus_cuniculus,Oryctolagus cuniculus,European rabbit,Lagomorpha,13.0
+otolemur_garnettii,Otolemur garnettii,Small-eared galago,Primates,20.0
+ovis_aries,Ovis aries,"Domestic sheep, or Mouflon",Artiodactyla,22.8
+pan_paniscus,Pan paniscus,"Pygmy chimpanzee, or Bonobo",Primates,55.0
+pan_troglodytes,Pan troglodytes,Chimpanzee,Primates,68.0
+panthera_leo,Panthera leo,Lion,Carnivora,28.0
+panthera_pardus,Panthera pardus,Leopard,Carnivora,27.3
+phascolarctos_cinereus,Phascolarctos cinereus,Koala,Diprotodontia,22.1
+physeter_catodon,Physeter macrocephalus,Sperm whale,Cetacea,77.0
+rattus_norvegicus,Rattus norvegicus,Norway rat,Rodentia,3.8
+rhinolophus_ferrumequinum,Rhinolophus ferrumequinum,Greater horseshoe bat,Chiroptera,30.5
+rhinopithecus_roxellana,Rhinopithecus roxellana,Golden snub-nosed monkey,Primates,29.5
+sarcophilus_harrisii,Sarcophilus harrisii,Tasmanian devil,Dasyuromorphia,13.0
+sciurus_vulgaris,Sciurus vulgaris,Eurasian red squirrel,Rodentia,14.8
+sus_scrofa,Sus scrofa,Wild boar,Artiodactyla,27.0
+ursus_maritimus,Ursus maritimus,Polar bear,Carnivora,43.8
+vombatus_ursinus,Vombatus ursinus,Coarse-haired wombat,Diprotodontia,30.0
+vulpes_vulpes,Vulpes vulpes,Red fox,Carnivora,21.3

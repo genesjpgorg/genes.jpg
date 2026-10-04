@@ -1,0 +1,32 @@
+{
+  "ancestry_adjustment": false,
+  "body_mass_adjustment": false,
+  "code_sha256": "2f4018e213d7edfc29527913b53a7862d2269a5ef2637e427b3b8aef833650f3",
+  "fdr": 0.05,
+  "gene_universe": 3036,
+  "held_out_species": "homo_sapiens",
+  "human_target_in_fitting": false,
+  "inner_validation": "5 shuffled folds",
+  "minimum_training_coverage_fraction": 0.6,
+  "minimum_training_observations": 10,
+  "models": [
+    "fdr_genes_ridge",
+    "all_genes_ridge"
+  ],
+  "outer_validation": "leave-one-nonhuman-species-out",
+  "preprocessing": "training median imputation; training mean and population standard deviation",
+  "ridge_alphas": [
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0,
+    1000.0,
+    10000.0,
+    100000.0
+  ],
+  "screen": "pairwise Spearman asymptotic t p, BH",
+  "seed": 20261004,
+  "target": "natural log of maximum lifespan in years",
+  "training_species": 47
+}

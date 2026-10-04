@@ -26,3 +26,5 @@ The [completed shuffle experiment](shuffle/README.md) used ten independent shuff
 ![Lifespan correlations before and after shuffling](shuffle/correlations.png)
 
 This result supports dependence of the model's lifespan-associated predictions on local sequence organization. It does not establish that these genes cause longer lifespan: the perturbed promoters are artificial, and the API's scored-window bounds also change slightly with the shuffled sequence. [Full numeric results and limitations](shuffle/README.md).
+
+A separate [expression-to-lifespan prediction experiment](../gi-lifespan-predictor/README.md) uses the completed 3,036-gene dataset, with human excluded from gene selection and model fitting. Both selected-gene and all-gene regression improve prediction across held-out nonhuman species, but substantially underestimate human maximum lifespan.

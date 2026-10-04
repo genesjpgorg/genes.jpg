@@ -1,0 +1,29 @@
+{
+  "context": "Homo sapiens primary hepatocytes, untreated, bulk RNA-seq.",
+  "expression_matrix_sha256": "92346cb79e0add1f0487f3643731893bcb5b834e8d601efa6a9b9215b4813d7f",
+  "genes": 3036,
+  "model": "g0-expression-8192",
+  "prediction_manifest_sha256": "73ca567b44a6cfa02f00859702e726e480a72cc0b4291bda9367d9cf0551d1aa",
+  "prediction_rows": 96849,
+  "run_progress": {
+    "analysis": "broad",
+    "cached_predictions": 619,
+    "completed_genes": 3036,
+    "completed_predictions": 96849,
+    "elapsed_seconds": 15447.217127855998,
+    "estimated_remaining_hours": 0.0,
+    "inference_elapsed_seconds": 15399.111074144996,
+    "last_completed_gene": "ENSG00000284862",
+    "manifest_sha256": "73ca567b44a6cfa02f00859702e726e480a72cc0b4291bda9367d9cf0551d1aa",
+    "new_predictions": 96230,
+    "order": "human_gene_id",
+    "started_at_utc": "2026-10-04T08:00:13Z",
+    "status": "completed",
+    "total_genes": 3036,
+    "total_predictions": 96849,
+    "updated_at_utc": "2026-10-04T12:17:41Z"
+  },
+  "source": "/mnt/filesystem-s8/genes.jpg/datasets/gi-hepatocytes-ensembl116/analyses/broad",
+  "source_cohort_sha256": "96ef55759aa757ca341bc0903ed7135f2f0f06d30b0cee65769002b95cf37594",
+  "species": 48
+}
