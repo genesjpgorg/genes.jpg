@@ -77,9 +77,10 @@ def test_h5_round_trip_and_lazy_subsets(tmp_path):
         assert df.groupby("ncbi_taxid").log10_longevity.nunique().eq(1).all()
         subset = rows.subset([11, 0, 5])
         assert np.array_equal(subset[0], rows[11])
-        inp, mask = collate(
+        inp, mask, gidx = collate(
             [subset[i] for i in range(3)], 1024, True, __import__("random").Random(0), encoded=True
         )
+        assert gidx.tolist() == [0, 1, 2]
         assert inp.shape == (3, 1024) and mask.all()
         assert (inp[:, 0] == 1).all() and (inp[:, -1] == 2).all()
         np.testing.assert_array_equal(inp[0].numpy(), rows[11])

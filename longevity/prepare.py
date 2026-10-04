@@ -41,7 +41,7 @@ COMP = str.maketrans("ACGTNacgtn", "TGCANtgcan")
 
 
 def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+    print(f"[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] {msg}", flush=True)
 
 
 # ---------------------------------------------------------------- 1. proteins
@@ -175,17 +175,31 @@ def read_contigs(genome: Path, wanted: set[str]) -> dict[str, str]:
     return seqs
 
 
-def extract_cds(accession: str, genome: Path, gff: Path, out: Path) -> str:
+def extract_cds(accession: str, genome: Path, gff: Path, out: Path, genomic_bp: int) -> str:
+    """CDS (spliced) and genomic locus (start codon -> stop codon, introns included) per hit.
+
+    Both are in the gene's own orientation; the locus is truncated to its first genomic_bp bases.
+    """
     hits = parse_gff(gff)
     if hits.empty:
         pd.DataFrame().to_parquet(out)
         return f"{accession}: 0 hits"
     contigs = read_contigs(genome, set(hits.contig))
-    seqs = []
+    seqs, loci, spans = [], [], []
     for h in hits.itertuples():
-        s = "".join(contigs[h.contig][a - 1 : b] for a, b in h.segments).upper()
-        seqs.append(s.translate(COMP)[::-1] if h.strand == "-" else s)
+        contig = contigs[h.contig]
+        s = "".join(contig[a - 1 : b] for a, b in h.segments).upper()
+        lo, hi = h.segments[0][0], h.segments[-1][1]
+        if h.strand == "-":
+            seqs.append(s.translate(COMP)[::-1])
+            loci.append(contig[max(lo - 1, hi - genomic_bp) : hi].upper().translate(COMP)[::-1])
+        else:
+            seqs.append(s)
+            loci.append(contig[lo - 1 : min(hi, lo - 1 + genomic_bp)].upper())
+        spans.append(hi - lo + 1)
     hits["cds"] = seqs
+    hits["genomic"] = loci
+    hits["genomic_span"] = spans
     hits["cds_len"] = hits.cds.str.len()
     hits["n_exons"] = hits.segments.map(len)
     hits["assembly_accession"] = accession
@@ -198,17 +212,17 @@ def extract_cds(accession: str, genome: Path, gff: Path, out: Path) -> str:
 _tok = None
 
 
-def _tokenize_chunk(seqs: list[str]) -> list[list[int]]:
+def _tokenize_chunk(seqs: list[str]) -> list[np.ndarray]:
     global _tok
     if _tok is None:
         from transformers import AutoTokenizer
 
         _tok = AutoTokenizer.from_pretrained(TOKENIZER)
     # no special tokens and no truncation here: the trainer adds [CLS]/[SEP] and crops windows
-    return _tok(seqs, add_special_tokens=False)["input_ids"]
+    return [np.asarray(x, dtype=np.int32) for x in _tok(seqs, add_special_tokens=False)["input_ids"]]
 
 
-def tokenize(seqs: list[str], workers: int) -> list[list[int]]:
+def tokenize(seqs: list[str], workers: int) -> list[np.ndarray]:
     n = max(1, math.ceil(len(seqs) / (workers * 4)))
     chunks = [seqs[i : i + n] for i in range(0, len(seqs), n)]
     with ProcessPoolExecutor(workers) as ex:
@@ -276,6 +290,38 @@ def load_tables(dataset: Path, anage_table: Path | None, threads: int,
     return genomes, longevity, species[["ncbi_taxid", "scientific_name", "class", "order", "family"]]
 
 
+def assign_splits(pairs: pd.DataFrame, by: str, val_frac: float, test_frac: float,
+                  seed: int) -> pd.Series:
+    """train/val/test label per pair: whole `by` groups (families) go to one split, and the
+    assignment is done within each class so every class is represented in every split
+    (classes with < 10 species stay entirely in train)."""
+    sp = pairs.groupby("ncbi_taxid").agg(cls=("class", "first"), grp=(by, "first"))
+    sp["grp"] = sp.grp.fillna("NA").astype(str)
+    label = {}
+    rng = np.random.default_rng(seed)
+    for _, c in sp.groupby("cls", sort=True, dropna=False):
+        groups = sorted(c.grp.unique())
+        rng.shuffle(groups)
+        n, n_test, n_val = len(c), 0, 0
+        if n < 10:  # too few species to split meaningfully: keep the class in train
+            label.update({t: "train" for t in c.index})
+            continue
+        for g in groups:
+            members = c.index[c.grp == g]
+            # Unknown families cannot be safely used as held-out family groups.
+            if g == "NA":
+                label.update({t: "train" for t in members})
+                continue
+            if n_test < test_frac * n:
+                split, n_test = "test", n_test + len(members)
+            elif n_val < val_frac * n:
+                split, n_val = "val", n_val + len(members)
+            else:
+                split = "train"
+            label.update({t: split for t in members})
+    return pairs.ncbi_taxid.map(label)
+
+
 def pick_genomes(genomes: pd.DataFrame, species: pd.DataFrame, out: Path, n: int,
                  seed: int) -> pd.DataFrame:
     """Up to n genomes: already-aligned ones first, then round-robin over orders for diversity."""
@@ -306,9 +352,21 @@ def main() -> None:
     ap.add_argument("--jobs", type=int, default=12, help="max genomes aligned concurrently")
     ap.add_argument("--mem-gb", type=float, default=150, help="memory budget for miniprot jobs")
     ap.add_argument("--exclude-classes", nargs="*", default=[], help="e.g. Amphibia")
+    ap.add_argument("--sequence", choices=["cds", "genomic"], default="cds",
+                    help="model input: spliced CDS, or genomic locus start->stop codon with introns")
+    ap.add_argument("--genomic-bp", type=int, default=16000,
+                    help="keep the first N bp of each genomic locus (the trainer crops further)")
     ap.add_argument("--max-genomes", type=int, default=0, help="use at most N genomes (0 = all)")
+    ap.add_argument("--assemblies", type=Path, default=None,
+                    help="text file of assembly accessions to use (e.g. to reuse a genome set)")
     ap.add_argument("--seed", type=int, default=0, help="for --max-genomes sampling")
     ap.add_argument("--pairs-out", type=Path, default=None, help="default: <out>/pairs.parquet")
+    ap.add_argument("--min-genes", type=int, default=0, help="drop species with fewer genes found")
+    ap.add_argument("--val-frac", type=float, default=0.0, help="species fraction for val (0 = no split)")
+    ap.add_argument("--test-frac", type=float, default=0.0)
+    ap.add_argument("--split-by", default="family", help="taxonomic column kept within one split")
+    ap.add_argument("--drop-sequences", action="store_true",
+                    help="omit raw cds/genomic strings from the output (tokens only)")
     ap.add_argument("--max-genome-gb", type=float, default=8,
                     help="skip genomes larger than this many Gb (giant salamanders etc.)")
     ap.add_argument("--miniprot", default="miniprot")
@@ -319,9 +377,10 @@ def main() -> None:
 
     out = a.out
     (out / "miniprot").mkdir(parents=True, exist_ok=True)
-    (out / "cds").mkdir(exist_ok=True)
+    (out / "seqs").mkdir(exist_ok=True)
     t_start = time.time()
 
+    log("STAGE proteins start")
     # 1. proteins
     genes = pd.read_csv(a.genes)
     proteins = out / "proteins.faa"
@@ -329,7 +388,12 @@ def main() -> None:
     prot.to_csv(out / "proteins.csv", index=False)
     log(f"proteins: {len(prot)}/{len(genes)} genes have a human protein")
 
+    log("STAGE tables start")
     genomes, longevity, species = load_tables(a.dataset, a.anage_table, a.threads)
+    if a.assemblies:
+        want = set(a.assemblies.read_text().split())
+        genomes = genomes[genomes.assembly_accession.isin(want)]
+        log(f"restricted to {len(genomes)}/{len(want)} listed assemblies")
 
     if a.exclude_classes:
         cls = genomes.species_taxid.map(species.set_index("ncbi_taxid")["class"])
@@ -345,6 +409,7 @@ def main() -> None:
         log(f"limited to {len(genomes)} genomes (already aligned first, then round-robin "
             f"over {genomes.species_taxid.map(species.set_index('ncbi_taxid')['order']).nunique()} orders)")
 
+    log("STAGE miniprot start")
     # 2. miniprot: up to --jobs genomes at a time within --mem-gb, largest first (short tail)
     todo = sorted((g for g in genomes.itertuples()
                    if a.force or not (out / "miniprot" / f"{g.assembly_accession}.gff").exists()),
@@ -368,19 +433,26 @@ def main() -> None:
     genomes = genomes[genomes.assembly_accession.map(
         lambda acc: (out / "miniprot" / f"{acc}.gff").exists())]
 
+    log("STAGE extraction start")
     # 3. CDS extraction: one process per genome
     todo = [g for g in genomes.itertuples()
-            if a.force or not (out / "cds" / f"{g.assembly_accession}.parquet").exists()]
+            if a.force or not (out / "seqs" / f"{g.assembly_accession}.parquet").exists()]
     if todo:
-        with ProcessPoolExecutor(min(len(todo), a.threads)) as ex:
+        # Bound extraction concurrency by the same conservative per-genome RAM estimate.
+        extraction_workers = min(len(todo), a.threads, a.jobs,
+                                 max(1, int(a.mem_gb / max(miniprot_gb(int(g.genome_size)) for g in todo))))
+        log(f"extraction: {len(todo)} genomes, {extraction_workers} workers within RAM budget")
+        with ProcessPoolExecutor(extraction_workers) as ex:
             futs = [ex.submit(extract_cds, g.assembly_accession, g.path,
                               out / "miniprot" / f"{g.assembly_accession}.gff",
-                              out / "cds" / f"{g.assembly_accession}.parquet") for g in todo]
+                              out / "seqs" / f"{g.assembly_accession}.parquet", a.genomic_bp)
+                    for g in todo]
             for f in futs:
                 log("cds " + f.result())
 
+    log("STAGE join start")
     # 4. pairs
-    hits = pd.concat([pd.read_parquet(out / "cds" / f"{acc}.parquet")
+    hits = pd.concat([pd.read_parquet(out / "seqs" / f"{acc}.parquet")
                       for acc in genomes.assembly_accession], ignore_index=True)
     q = hits["query"].str.split("|", expand=True)
     hits["entrez_id"], hits["hgnc_symbol"] = q[0].astype(int), q[1]
@@ -398,21 +470,45 @@ def main() -> None:
                         on="ncbi_taxid"))
     pairs["log10_longevity"] = np.log10(pairs.max_longevity_yrs)
 
+    log("STAGE tokenize start")
     t0 = time.time()
-    pairs["input_ids"] = tokenize(pairs.cds.tolist(), a.threads)
+    pairs["input_ids"] = tokenize(pairs[a.sequence].tolist(), a.threads)
     pairs["n_tokens"] = pairs.input_ids.map(len)
     log(f"tokenised {len(pairs)} CDS in {time.time() - t0:.1f}s with {a.threads} workers, "
-        f"{pairs.cds_len.sum() / pairs.n_tokens.sum():.2f} bp/token")
+        f"{pairs[a.sequence].str.len().sum() / pairs.n_tokens.sum():.2f} bp/token ({a.sequence})")
 
+    log("STAGE write start")
     cols = ["ncbi_taxid", "scientific_name", "class", "order", "family", "assembly_accession",
             "entrez_id", "hgnc_symbol", "contig", "strand", "identity", "positive", "coverage",
-            "frameshifts", "stop_codons", "n_exons", "cds_len", "cds", "n_tokens", "input_ids",
+            "frameshifts", "stop_codons", "n_exons", "cds_len", "cds", "genomic_span", "genomic",
+            "n_tokens", "input_ids",
             "max_longevity_yrs", "log10_longevity", "specimen_origin", "sample_size", "data_quality"]
     pairs = pairs[cols].sort_values(["ncbi_taxid", "entrez_id"]).reset_index(drop=True)
+    if a.min_genes:
+        n = pairs.groupby("ncbi_taxid").entrez_id.transform("size")
+        log(f"dropping {pairs[n < a.min_genes].ncbi_taxid.nunique()} species with < {a.min_genes} genes")
+        pairs = pairs[n >= a.min_genes].reset_index(drop=True)
+    if a.val_frac + a.test_frac > 0:
+        pairs["split"] = assign_splits(pairs, a.split_by, a.val_frac, a.test_frac, a.seed)
+    if a.drop_sequences:
+        pairs = pairs.drop(columns=["cds", "genomic"])
+    pairs["input_ids"] = pairs.input_ids.map(lambda x: np.asarray(x, dtype=np.int32))
     pairs_out = a.pairs_out or out / "pairs.parquet"
     pairs.to_parquet(pairs_out)
+    if "split" in pairs:
+        sp = pairs.groupby("ncbi_taxid").agg(split=("split", "first"), cls=("class", "first"),
+                                             family=("family", "first"))
+        splits = {k: dict(species=int((sp.split == k).sum()),
+                          pairs=int((pairs.split == k).sum()),
+                          families=int(sp[sp.split == k].family.nunique()),
+                          by_class=sp[sp.split == k].cls.value_counts().to_dict(),
+                          taxids=sorted(map(int, sp.index[sp.split == k])))
+                  for k in ("train", "val", "test")}
+        pairs_out.with_name(pairs_out.stem + "_splits.json").write_text(json.dumps(splits, indent=1))
+        log("splits: " + ", ".join(f"{k} {v['species']} species / {v['pairs']} pairs"
+                                   for k, v in splits.items()))
 
-    summary = (pairs.groupby(["ncbi_taxid", "scientific_name", "class"])
+    summary = (pairs.groupby(["ncbi_taxid", "scientific_name", "class"], dropna=False)
                     .agg(genes=("entrez_id", "size"), median_identity=("identity", "median"),
                          median_cds_bp=("cds_len", "median"), median_tokens=("n_tokens", "median"),
                          longevity_yrs=("max_longevity_yrs", "first"))
@@ -427,6 +523,7 @@ def main() -> None:
     pairs_out.with_name(pairs_out.stem + "_report.json").write_text(json.dumps(report, indent=2, default=str))
     log(f"wrote {pairs_out}\n{summary.to_string(index=False)}")
 
+    log("STAGE write end")
 
 if __name__ == "__main__":
     main()
