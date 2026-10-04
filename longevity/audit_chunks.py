@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 
 from longevity.chunks import load_chunks
-from longevity.comparison import read_spec, validate_cohort
+from longevity.comparison import chunk_counts, read_spec, validate_chunk_counts, validate_cohort
 
 
 def audit(data, comparison, out):
@@ -21,15 +21,14 @@ def audit(data, comparison, out):
     with ExitStack() as stack:
         df, _ = load_chunks(data, stack)
         validate_cohort(df, spec)
-        if not df.groupby("assembly_accession").size().eq(1000).all():
-            raise ValueError("Expected exactly 1000 inputs per genome")
+        validate_chunk_counts(df, spec)
         if not df.comparison_sha256.eq(spec["sha256"]).all():
             raise ValueError("H5 comparison fingerprint differs")
     fingerprints = {}
     for path in sorted(data.glob("*.h5")):
         with h5py.File(path, "r") as f:
             ids = f["input_ids"][:]
-            if ids.dtype.kind not in "iu" or ids.shape != (1000, 1024):
+            if ids.dtype.kind not in "iu" or ids.shape != (chunk_counts(spec)[path.stem], 1024):
                 raise ValueError(f"Invalid IDs/shape: {path}")
             if ids.min() < 0 or ids.max() >= 32768:
                 raise ValueError(f"Token outside the DNA vocabulary: {path}")
@@ -45,7 +44,7 @@ def audit(data, comparison, out):
         "n_inputs": len(df),
         "stored_positions": 1024,
         "dna_bpe_tokens": 1022,
-        "chunks_per_genome": 1000,
+        "chunks_per_assembly": chunk_counts(spec),
         "h5_sha256": fingerprints,
         "inputs_per_split": {k: int(df.ncbi_taxid.isin(v).sum()) for k, v in spec["split"].items()},
     }

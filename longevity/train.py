@@ -151,9 +151,10 @@ def collate(ids: list[np.ndarray], max_len: int, train: bool, rng: random.Random
 
 
 def genes_per_species(df: pd.DataFrame, n: int, seed: int) -> pd.DataFrame:
-    """A fixed random sample of at most n genes per species."""
+    """A fixed random sample of at most n genes (or chunks) per species."""
+    order = [c for c in ("ncbi_taxid", "entrez_id", "assembly_accession", "chunk_id") if c in df]
     return (df.sample(frac=1, random_state=seed).groupby("ncbi_taxid").head(n)
-              .sort_values(["ncbi_taxid", "entrez_id"]).reset_index(drop=True))
+              .sort_values(order).reset_index(drop=True))
 
 
 def group_split(df: pd.DataFrame, by: str, val_frac: float, test_frac: float,
@@ -202,7 +203,7 @@ def evaluate(model, df: pd.DataFrame, ids: list[np.ndarray], mu: float, sd: floa
     count_name = "n_chunks" if is_chunks else "n_genes"
     df = df[["ncbi_taxid", "scientific_name", "class", *identity, "log10_longevity"]].copy()
     df["pred_log10"] = preds * sd + mu
-    sp = (df.groupby(["ncbi_taxid", "scientific_name", "class"])
+    sp = (df.groupby(["ncbi_taxid", "scientific_name", "class"], dropna=False)
             .agg(true_log10=("log10_longevity", "first"), pred_log10=("pred_log10", "mean"),
                  pred_sd=("pred_log10", "std"), **{count_name: (count_col, "size")})
             .reset_index())
@@ -216,6 +217,7 @@ def evaluate(model, df: pd.DataFrame, ids: list[np.ndarray], mu: float, sd: floa
     if len(sp) >= 3:
         m["species_spearman"] = float(sp.true_log10.rank().corr(sp.pred_log10.rank()))  # no scipy
         m["species_pearson"] = float(sp.true_log10.corr(sp.pred_log10))
+    sp["class"] = sp["class"].fillna("unclassified")
     m["species"] = sp.round(4).to_dict("records")
     return m, df
 
@@ -322,11 +324,13 @@ def _main(argv, stack) -> None:
         if col in df:
             df[col] = df[col].fillna("NA")
     if spec:
-        from longevity.comparison import validate_cohort
+        from longevity.comparison import validate_chunk_counts, validate_cohort
 
         validate_cohort(df, spec)
-        if not df.groupby("assembly_accession").size().eq(1000).all():
-            ap.error("comparison requires exactly 1000 chunks per genome")
+        try:
+            validate_chunk_counts(df, spec)
+        except ValueError as e:
+            ap.error(str(e))
         if "comparison_sha256" not in df or not df.comparison_sha256.eq(spec["sha256"]).all():
             ap.error("H5 shards were not prepared with this comparison specification")
     df = df[~df.ncbi_taxid.isin(args.exclude_species)].reset_index(drop=True)
@@ -348,8 +352,6 @@ def _main(argv, stack) -> None:
     parts = {"train": df[~df.ncbi_taxid.isin(held)], "val": df[df.ncbi_taxid.isin(args.val_species)],
              "test": df[df.ncbi_taxid.isin(args.test_species)]}
     parts = {k: v.reset_index(drop=True) for k, v in parts.items()}
-    if is_chunks and (args.final_eval_genes_per_species or args.eval_genes_per_species):
-        ap.error("--eval-genes-per-species / --final-eval-genes-per-species apply only to gene pairs")
     if args.final_eval_genes_per_species:
         for k in ("val", "test"):  # cap genes per species for the final evaluations too
             if not parts[k].empty:

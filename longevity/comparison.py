@@ -87,13 +87,31 @@ def validate_cohort(df, spec):
             raise ValueError(f"Comparison cohort differs in {col}")
 
 
-def create_spec(run, pairs, budget):
+def chunk_counts(spec):
+    """Return the frozen per-assembly input budget; retain legacy 1000-input specs."""
+    wanted = {r["assembly_accession"] for r in spec["cohort"]}
+    counts = spec.get("chunks_per_assembly", {acc: 1000 for acc in wanted})
+    if set(counts) != wanted or any(type(n) is not int or n < 1 for n in counts.values()):
+        raise ValueError("Invalid per-assembly chunk budget")
+    return counts
+
+
+def validate_chunk_counts(df, spec):
+    if df.groupby("assembly_accession").size().to_dict() != chunk_counts(spec):
+        raise ValueError("Chunk counts differ from frozen per-assembly budget")
+
+
+def create_spec(run, pairs, budget, allow_running_reference=False):
     run, pairs = Path(run), Path(pairs)
     cfg = json.loads((run / "config.json").read_text())
     if cfg.get("input_kind", "gene_cds") != "gene_cds":
         raise ValueError("Reference must be a CDS run")
-    split = cfg["split"]
-    if set(split) != {"train", "val", "test"} or not split["train"]:
+    if set(cfg["split"]) - {"train", "val", "test", "val_sub"}:
+        raise ValueError("Unknown reference split names")
+    if not set(cfg["split"].get("val_sub", [])).issubset(cfg["split"].get("val", [])):
+        raise ValueError("Reference val_sub is not a subset of validation")
+    split = {k: cfg["split"][k] for k in ("train", "val", "test")}
+    if not split["train"]:
         raise ValueError("Reference must contain train/val/test assignments")
     used = [i for ids in split.values() for i in ids]
     if len(used) != len(set(used)):
@@ -114,9 +132,10 @@ def create_spec(run, pairs, budget):
         raise ValueError("Reference max_len must be 1024 to match chunk inputs")
     metrics = [json.loads(s) for s in (run / "metrics.jsonl").read_text().splitlines() if s]
     done = [r for r in metrics if r["kind"] == "done"]
-    if len(done) != 1 or not 0 < done[0]["step"] <= cfg["total_steps"]:
+    running = not done and allow_running_reference and budget == "epochs"
+    if not running and (len(done) != 1 or not 0 < done[0]["step"] <= cfg["total_steps"]):
         raise ValueError("Reference must have exactly one completed training run")
-    if budget == "epochs" and done[0]["step"] != cfg["total_steps"]:
+    if not running and budget == "epochs" and done[0]["step"] != cfg["total_steps"]:
         raise ValueError(
             "Epoch matching requires a CDS reference that completed its planned epochs"
         )
@@ -134,6 +153,11 @@ def create_spec(run, pairs, budget):
         test_frac=0.0,
         split_by=cfg["split_by"],
     )
+    for key in ("eval_every_steps", "eval_genes_per_species", "final_eval_genes_per_species", "save_best"):
+        if key in cfg:
+            settings[key] = cfg[key]
+    if cfg.get("long_inputs", "crop") != "crop":
+        raise ValueError("Only the reference crop input policy is supported")
     with pairs.open("rb") as handle:
         pairs_hash = hashlib.file_digest(handle, "sha256").hexdigest()
     spec = {
@@ -152,7 +176,8 @@ def create_spec(run, pairs, budget):
         "budget": budget,
         "reference_max_len": cfg["max_len"],
         "reference_total_steps": cfg["total_steps"],
-        "reference_completed_steps": done[0]["step"],
+        "reference_completed_steps": done[0]["step"] if done else None,
+        "reference_status_at_freeze": "running" if running else "complete",
         "reference_warmup_steps": cfg["warmup_steps"],
         "reference_steps_per_epoch": cfg["steps_per_epoch"],
         "limitations": [
@@ -183,8 +208,9 @@ def main():
     ap.add_argument("--pairs", type=Path, required=True, help="CDS pairs used by the reference run")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--budget", choices=["updates", "epochs"], required=True)
+    ap.add_argument("--allow-running-reference", action="store_true")
     args = ap.parse_args()
-    spec = create_spec(args.reference_run, args.pairs, args.budget)
+    spec = create_spec(args.reference_run, args.pairs, args.budget, args.allow_running_reference)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(spec, indent=2, allow_nan=False) + "\n")
     print(
