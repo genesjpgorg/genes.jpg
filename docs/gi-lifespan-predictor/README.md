@@ -1,5 +1,7 @@
 # Predicting lifespan from GI hepatocyte expression
 
+For genomic FASTA → GI expression API → saved regression, including the GRCh38 reference values, see the [sequence-to-lifespan manual](../gi-longevity-final/USAGE.md). The [final artifact guide](../gi-longevity-final/README.md) links this model to the original 30-hit screen and six-gene shuffle experiment.
+
 Both regression models improve prediction of nonhuman mammals over the constant baseline, but **substantially underpredict human maximum lifespan**: **32.5 years** from statistically selected genes and **46.6 years** from all genes, versus **122.5 years** recorded in AnAge. This human validation is unsuccessful: comparative predictive signal does not yield an accurate human estimate.
 
 The human outcome was held out from feature selection, preprocessing, ridge-penalty tuning, and fitting. The target is **recorded maximum lifespan**, not life expectancy. Human AnAge maximum lifespan is **122.5 years**; it was compared with the frozen predictions only after fitting.

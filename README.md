@@ -301,3 +301,11 @@ Then pass the H5 directory to `python -m longevity.train --data ...` to reuse th
 ModernGENA/ModernBERT regression trainer. Use `--comparison configs/longevity-anage100-comparison.json`
 for the frozen CDS cohort, splits and 18-epoch training settings. See
 [comparison protocol, commands and H5 format](docs/longevity-chunks.md).
+
+## GI expression and mammalian lifespan
+
+The [final artifact guide](docs/gi-longevity-final/README.md) collects the methodology,
+the original 30 unadjusted Spearman hits, six-candidate TSS shuffle results, and
+expression-based lifespan regressors. It includes parameter tables, a genomic
+FASTA-to-GI-to-lifespan usage manual, held-out human predictions, and an artifact
+manifest for building reports and presentations.

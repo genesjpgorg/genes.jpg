@@ -1,5 +1,7 @@
 # Lifespan and predicted hepatocyte expression
 
+The [final artifact guide](../gi-longevity-final/README.md) includes the complete original 30-hit Spearman result, methodology, shuffled statistics and sequence-to-lifespan regression instructions.
+
 These scatterplots show the six strongest Spearman candidates from the frozen 2,001-gene analysis: **ABHD4, TDO2, CCDC85A, LGI1, ACSS1 and ATG14**. Each point is one mammalian species. Lifespan is the recorded maximum from AnAge; expression is predicted from its orthologous DNA window using GI `g0-expression-8192`.
 
 ![Lifespan versus predicted expression for six candidate genes](lifespan_expression.png)

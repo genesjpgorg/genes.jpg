@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "verification": "GRCh38 FASTA -> independently extracted windows -> validated original GI response cache -> exported regression weights",
+  "genome_sha256": "d8c3af0094a7bba6125763bad779ec18a81483c739c6ed122094bdf86c187b92",
+  "tss_manifest_sha256": "ff36f0757beff106f26d3a769e335dba2e386711809fd78d9b9a5563f57edfd0",
+  "sequence_code_sha256": "377e9dae0e7a9a1fceddce1c658ed35a56936e859260785f00f521768ba0748a",
+  "verified_window_sequence_hashes": 3034,
+  "cached_gi_predictions": 3034,
+  "new_api_requests": 0,
+  "max_abs_expression_difference": 0.0,
+  "human_predictions": {
+    "fdr_genes_ridge": 32.5275164161977,
+    "all_genes_ridge": 46.55558228872308
+  },
+  "missing_genes_imputed": [
+    "ENSG00000170464",
+    "ENSG00000266200"
+  ],
+  "coefficients_sha256": "5f4b3709609c9b71c84b21c6526fa5fb5cae3500e96a8c2278467c7e2b519298",
+  "historical_spearman_reproduction": {
+    "genes": 2001,
+    "bh_hits": 30,
+    "all_rho_permutation_p_bh_q_and_extreme_counts_match": true
+  }
+}

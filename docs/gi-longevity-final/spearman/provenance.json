@@ -1,0 +1,27 @@
+{
+  "assays": [
+    "spearman",
+    "ols",
+    "ols_mass",
+    "absolute_group",
+    "relative_group"
+  ],
+  "base_seed": 8192,
+  "code_sha256": "71cc248a6204587815d2df5363422be31a2e0aa04eb0136952cd17092828bf24",
+  "expression_sha256": "7785f125229343bc485406d3807d16e738c05b523f0c530a124703713afea047",
+  "original_groups_sha256": "46c5cd0de990a16ee9924983de837f47ca86c88eb4ee74cdb1d8ed1ca089d8db",
+  "original_results_sha256": "174c4f268b399ca8c3fdb050814102d790d496bff5eaa2e49995808ed36a5453",
+  "permutations_per_gene": 999999,
+  "phylogeny": "not used; species treated as independent",
+  "planned_tests_per_assay": 3036,
+  "relative_groups": "OLS residuals of log10 lifespan ~ log10 mass; median split on all 48 species",
+  "source_snapshot": "data/datasets/gi-hepatocytes-ensembl116/analyses/broad/associations/20261004T104842Z",
+  "spearman_test": "absolute rho; unrestricted random pairings; ties retained; +1 correction",
+  "export_source_results_sha256": "9d1ea0418c71d4e14cdc462a4c1770f3507ff1b3e2e0b5828143de84448542f3",
+  "exported_all_genes_sha256": "704fe9e2f476348720d70926b20a5d6316703db6d2612652b0e7791555be203d",
+  "exported_observations_sha256": "bde11926c8e0e7c2dc0b9d9ef0beb01ab5b6bff42aa8ab552e15a4cf7116dccb",
+  "snapshot_genes": 2001,
+  "observations": 63906,
+  "significant_bh": 30,
+  "export_script_sha256": "8b57420e2fdffed1eb369cd43c33f79fffff4b2104735b80525342b5bbc1988d"
+}

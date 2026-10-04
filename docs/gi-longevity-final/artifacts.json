@@ -1,0 +1,1563 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-10-04T12:54:00.650137+00:00",
+  "paths_relative_to": "repository root",
+  "entry_point": "docs/gi-longevity-final/README.md",
+  "manifest_self_checksum": "omitted to avoid circular hashing",
+  "study_scopes": {
+    "original_screen": {
+      "genes_tested": 2001,
+      "observations": 63906,
+      "planned_bh_family": 3036,
+      "bh_hits": 30,
+      "human_included": true,
+      "ancestry_or_mass_adjustment": false
+    },
+    "shuffle": {
+      "candidate_genes": 6,
+      "species_gene_pairs": 187,
+      "shuffles_per_pair": 10,
+      "total_api_predictions": 2057,
+      "bh_family": 6,
+      "shuffled_mean_bh_hits": 0
+    },
+    "regression": {
+      "genes_available": 3036,
+      "training_species": 47,
+      "human_held_out_from_all_training": true,
+      "selected_model_genes": 57,
+      "all_gene_model_genes": 3036,
+      "target": "natural log of recorded maximum lifespan in years"
+    }
+  },
+  "parameter_contract": {
+    "weights": "docs/gi-lifespan-predictor/coefficients.csv",
+    "intercepts_and_features": "docs/gi-lifespan-predictor/human_prediction_frozen.json",
+    "formula_and_commands": "docs/gi-longevity-final/USAGE.md"
+  },
+  "artifacts": [
+    {
+      "path": "configs/gi-hepatocytes.json",
+      "description": "Original fixed model/context and preparation configuration.",
+      "bytes": 569,
+      "sha256": "fdc5eaf279fd3b6ec8b7c4efa873f3ede65b1c9ef767c359e31df8112b4682f4",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/README.md",
+      "description": "Human-readable findings, scope, navigation and interpretation for this analysis.",
+      "bytes": 9256,
+      "sha256": "584879bf2ce708f6f0c998cc820e76ab92a8fa931f2e9babae545b2dd286f56b",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/coefficients.csv",
+      "description": "Reusable fitted weights and training medians, means, scales; filter by model before inference.",
+      "bytes": 591465,
+      "sha256": "5f4b3709609c9b71c84b21c6526fa5fb5cae3500e96a8c2278467c7e2b519298",
+      "kind": "table",
+      "rows": 3093,
+      "column_count": 12,
+      "columns": [
+        {
+          "name": "model",
+          "dtype": "str"
+        },
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "coefficient_standardized",
+          "dtype": "float64"
+        },
+        {
+          "name": "coefficient_original_scale",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_median",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_mean",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_scale",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_spearman_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_spearman_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_q_bh",
+          "dtype": "float64"
+        },
+        {
+          "name": "training_n_observed",
+          "dtype": "int64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/coverage_diagnostics.csv",
+      "description": "Descriptive prediction-error comparison between lower and higher expression coverage.",
+      "bytes": 910,
+      "sha256": "fcb8e4edd5cfeabf04f87e1575de5023f55da2e3759deb4c05839e81ae560571",
+      "kind": "table",
+      "rows": 6,
+      "column_count": 8,
+      "columns": [
+        {
+          "name": "model",
+          "dtype": "str"
+        },
+        {
+          "name": "coverage_group",
+          "dtype": "str"
+        },
+        {
+          "name": "species",
+          "dtype": "int64"
+        },
+        {
+          "name": "coverage_median_cutoff_genes",
+          "dtype": "float64"
+        },
+        {
+          "name": "mae_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "mean_absolute_log_error",
+          "dtype": "float64"
+        },
+        {
+          "name": "absolute_log_error_share",
+          "dtype": "float64"
+        },
+        {
+          "name": "rho_coverage_vs_absolute_log_error",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/cross_validation_metrics.csv",
+      "description": "Nonhuman held-out performance summaries; errors in years and natural-log years.",
+      "bytes": 397,
+      "sha256": "806f8feeadbfae42d7b7900c8a9d80d211eb62bd48920c2b21cda5cee643717e",
+      "kind": "table",
+      "rows": 3,
+      "column_count": 7,
+      "columns": [
+        {
+          "name": "model",
+          "dtype": "str"
+        },
+        {
+          "name": "species",
+          "dtype": "int64"
+        },
+        {
+          "name": "mae_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "rmse_log_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "median_absolute_error_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman",
+          "dtype": "float64"
+        },
+        {
+          "name": "r2_log",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/cross_validation_predictions.csv",
+      "description": "141 outer held-out predictions: 47 nonhumans times two regressors and baseline.",
+      "bytes": 13866,
+      "sha256": "3ce07f7e7b1bd48f5958665d2280578f128bf63b3ed91bc229b678aff493b43b",
+      "kind": "table",
+      "rows": 141,
+      "column_count": 9,
+      "columns": [
+        {
+          "name": "ensembl_species",
+          "dtype": "str"
+        },
+        {
+          "name": "model",
+          "dtype": "str"
+        },
+        {
+          "name": "observed_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "predicted_log_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "predicted_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "n_features",
+          "dtype": "int64"
+        },
+        {
+          "name": "alpha",
+          "dtype": "float64"
+        },
+        {
+          "name": "expression_genes_observed",
+          "dtype": "int64"
+        },
+        {
+          "name": "features_observed",
+          "dtype": "int64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/cv_selected_genes.csv",
+      "description": "Selected genes in each outer training fold; use for feature-stability assessment.",
+      "bytes": 95125,
+      "sha256": "b142645bc71d793ca8e810d8670a3b99a4fd4c7ac38542115ebd6a4bbacdc3dc",
+      "kind": "table",
+      "rows": 2748,
+      "column_count": 2,
+      "columns": [
+        {
+          "name": "ensembl_species_held_out",
+          "dtype": "str"
+        },
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/expression_matrix.csv.gz",
+      "description": "Full 48-species by 3,036-gene expression matrix; missing entries remain empty.",
+      "bytes": 241331,
+      "sha256": "92346cb79e0add1f0487f3643731893bcb5b834e8d601efa6a9b9215b4813d7f",
+      "kind": "table",
+      "rows": 48,
+      "column_count": 3037,
+      "index_column": {
+        "name": "ensembl_species",
+        "dtype": "string"
+      },
+      "feature_columns": {
+        "count": 3036,
+        "names_from": "docs/gi-lifespan-predictor/gene_annotations.csv:human_gene_id",
+        "name_pattern": "ENSG followed by 11 digits",
+        "dtype": "floating point or missing",
+        "unit": "GI-predicted log(TPM+1)"
+      },
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/final_model_tuning.csv",
+      "description": "Inner-validation scores for fixed ridge penalties, and the chosen alpha for each model.",
+      "bytes": 789,
+      "sha256": "3f932728be0a734c0d7ccc02ec46bf6e8d6ac049e97852202044f21c0c9b785e",
+      "kind": "table",
+      "rows": 16,
+      "column_count": 4,
+      "columns": [
+        {
+          "name": "model",
+          "dtype": "str"
+        },
+        {
+          "name": "alpha",
+          "dtype": "float64"
+        },
+        {
+          "name": "inner_mse_log_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "selected",
+          "dtype": "bool"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/gene_annotations.csv",
+      "description": "Human Ensembl gene IDs and display names for all 3,036 regression features.",
+      "bytes": 67667,
+      "sha256": "3e2377cf795f26f9c64f7435bbe9ccc9c69357a475666e2ec8c0d483007a7fd3",
+      "kind": "table",
+      "rows": 3036,
+      "column_count": 2,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/heldout_predictions.pdf",
+      "description": "Observed versus predicted maximum lifespan; nested nonhuman holdouts and separate human holdout.",
+      "bytes": 25254,
+      "sha256": "472fb98aa72ffa924160e659ace2afff8e2da5afbbb6922ffec3541e19ea1851",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/heldout_predictions.png",
+      "description": "Observed versus predicted maximum lifespan; nested nonhuman holdouts and separate human holdout.",
+      "bytes": 193867,
+      "sha256": "b0b38ac96dd9bc4e9be42fefc7fe2fd774383074073f3f0f92f88066d54ffc80",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/heldout_predictions.svg",
+      "description": "Observed versus predicted maximum lifespan; nested nonhuman holdouts and separate human holdout.",
+      "bytes": 112302,
+      "sha256": "90e150b154476aae8f28baeac3ec4339a9a6e51ceec8ac87e8107dd40b36b5ee",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/human_prediction_frozen.json",
+      "description": "Saved model intercepts, penalties, feature lists, human predictions and training species.",
+      "bytes": 79489,
+      "sha256": "2a9e8347abdaea9759e329757e52cdba15e8c1ddc18c4f059854d84ed068a659",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/human_validation.csv",
+      "description": "Held-out human predictions compared with recorded maximum lifespan of 122.5 years.",
+      "bytes": 220,
+      "sha256": "1330364ceeb84c21731dc4e334d445ba4547c664ebab8442465cdf18f665d9b5",
+      "kind": "table",
+      "rows": 3,
+      "column_count": 4,
+      "columns": [
+        {
+          "name": "model",
+          "dtype": "str"
+        },
+        {
+          "name": "observed_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "predicted_years",
+          "dtype": "float64"
+        },
+        {
+          "name": "error_years",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/nonhuman_gene_screen.csv",
+      "description": "Training-only 3,036-gene asymptotic Spearman screen defining the 57-feature final model.",
+      "bytes": 289264,
+      "sha256": "888d5a8085cfd645cff707b6904cfc1436b2c9ab8190278c411d0f96bf15e4eb",
+      "kind": "table",
+      "rows": 3036,
+      "column_count": 8,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "n_observed",
+          "dtype": "int64"
+        },
+        {
+          "name": "eligible",
+          "dtype": "bool"
+        },
+        {
+          "name": "spearman_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "q_bh",
+          "dtype": "float64"
+        },
+        {
+          "name": "selected",
+          "dtype": "bool"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/protocol.json",
+      "description": "Frozen design and hyperparameters for the containing experiment.",
+      "bytes": 877,
+      "sha256": "614f1bcce78437ae237c4a4b3c962b7148e7c2190b05bdc74986d57ffe43e478",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/source_provenance.json",
+      "description": "Full-run provenance and input-table digests for regression.",
+      "bytes": 1211,
+      "sha256": "6b3e57d352c4c4900f585a364e0c95b57024c35176f0fef47892e091ad28241c",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-lifespan-predictor/training_species.csv",
+      "description": "47 nonhuman species and their lifespan labels; excludes human from all fitting.",
+      "bytes": 3334,
+      "sha256": "42bd341c40849a94443a229e9fdcac27ec0bf4646657b9c558250dcf2fca8f57",
+      "kind": "table",
+      "rows": 47,
+      "column_count": 5,
+      "columns": [
+        {
+          "name": "ensembl_species",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_name",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_common_name",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_order",
+          "dtype": "str"
+        },
+        {
+          "name": "max_longevity_yrs",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/README.md",
+      "description": "Human-readable findings, scope, navigation and interpretation for this analysis.",
+      "bytes": 3354,
+      "sha256": "976f4e679cc9ca75865ae2fc16a804ebc453ffb559e568cb9e3a4ad441715876",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/candidates.csv",
+      "description": "The six selected original candidates and their historical screen statistics.",
+      "bytes": 781,
+      "sha256": "bd6edf4dd9178f401a5c8303d6b0805945eab45a58f09dae07d26124a946e20c",
+      "kind": "table",
+      "rows": 6,
+      "column_count": 9,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "n_species",
+          "dtype": "int64"
+        },
+        {
+          "name": "spearman_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_q_bh_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_permutations",
+          "dtype": "int64"
+        },
+        {
+          "name": "ols_beta",
+          "dtype": "float64"
+        },
+        {
+          "name": "ols_q_bh_planned",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/lifespan_expression.pdf",
+      "description": "Original six-candidate lifespan versus expression scatterplots; q family is 3,036.",
+      "bytes": 55555,
+      "sha256": "a881ca990dacb5bc96daddcc776b824e4febf125c2c07d1b9b7919fcf1d6325b",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/lifespan_expression.png",
+      "description": "Original six-candidate lifespan versus expression scatterplots; q family is 3,036.",
+      "bytes": 586078,
+      "sha256": "67793964df0b004a8d315d85a4f10aa83f06efc1cd29853c53f6f293d109c920",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/lifespan_expression.svg",
+      "description": "Original six-candidate lifespan versus expression scatterplots; q family is 3,036.",
+      "bytes": 253360,
+      "sha256": "e9d558d76a759800af95749d5b2878a91fc3ee24a21fbb1f73673690276f70ca",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/provenance.json",
+      "description": "Source identity, snapshot and checksums for the containing experiment/export.",
+      "bytes": 915,
+      "sha256": "37da12478bcd486f0c6ed917a9efaf3b314d3a803cff65d7e32dfa56dc64749e",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/README.md",
+      "description": "Human-readable findings, scope, navigation and interpretation for this analysis.",
+      "bytes": 3527,
+      "sha256": "6faadec008d7354cf0ab34c25f95c1ab90eb7fed3c146a3f409918531bdd180e",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/analysis_provenance.json",
+      "description": "Shuffle-analysis code, input hashes and resampling parameters.",
+      "bytes": 993,
+      "sha256": "bbec1f6aae8ee43daf92614a3d14009bce058e37aeac8db42e046645cbfc2269",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/correlations.pdf",
+      "description": "Native rho, shuffled-mean rho and individual replicate rho for the six candidates.",
+      "bytes": 22443,
+      "sha256": "55e656cc05a91bc6aa07998bddd936d7b2a1bcbd4976a74ca6e724a03aadaa8e",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/correlations.png",
+      "description": "Native rho, shuffled-mean rho and individual replicate rho for the six candidates.",
+      "bytes": 94063,
+      "sha256": "68f6b2ce1d215edd0258d3cec048ccfdafe422e54da85edf00aed6d69d6b0d95",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/correlations.svg",
+      "description": "Native rho, shuffled-mean rho and individual replicate rho for the six candidates.",
+      "bytes": 56031,
+      "sha256": "7295540ab34ee2a8e15ac3cbe6de8e781b2f36141821a247cd86dff934e08a41",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/gene_summary.csv",
+      "description": "Six candidate genes' native and shuffled-mean rho/p/q, replicate ranges and paired attenuation intervals.",
+      "bytes": 2189,
+      "sha256": "32e54f5fe2e0f7707f5bb9be9325b9e42c5d84bf17a072ae65922937f317e91e",
+      "kind": "table",
+      "rows": 6,
+      "column_count": 21,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "n_species",
+          "dtype": "int64"
+        },
+        {
+          "name": "shuffle_replicates",
+          "dtype": "int64"
+        },
+        {
+          "name": "original_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_permutation_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_permutation_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffle_rho_median",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffle_rho_min",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffle_rho_max",
+          "dtype": "float64"
+        },
+        {
+          "name": "replicates_same_direction_as_original",
+          "dtype": "int64"
+        },
+        {
+          "name": "signed_rho_attenuation",
+          "dtype": "float64"
+        },
+        {
+          "name": "attenuation_bootstrap_ci_low",
+          "dtype": "float64"
+        },
+        {
+          "name": "attenuation_bootstrap_ci_high",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_retest_max_abs_difference",
+          "dtype": "float64"
+        },
+        {
+          "name": "mean_log_expression_change",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_shuffle_mean_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_q_bh_six",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_q_bh_six",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/inference_qc.json",
+      "description": "API counts, native-control agreement, sequence QC and scoring-window diagnostics.",
+      "bytes": 1031,
+      "sha256": "8d2ab99f36223aafe14c667b9b282dc92058a01a1aa1fc08c5411a0089981152",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/native_vs_shuffled.pdf",
+      "description": "Native and shuffled-mean expression scatterplots; error bars are ten-shuffle min-max.",
+      "bytes": 54331,
+      "sha256": "c33e0afea63d9210d3a4c139b8f6eb81d51654f21bc028ab4c540f303e65956d",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/native_vs_shuffled.png",
+      "description": "Native and shuffled-mean expression scatterplots; error bars are ten-shuffle min-max.",
+      "bytes": 524429,
+      "sha256": "c4ae1181549e750c012f254fadfca9e5c45e14a8a967ef057739d29d59f6bd67",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/native_vs_shuffled.svg",
+      "description": "Native and shuffled-mean expression scatterplots; error bars are ten-shuffle min-max.",
+      "bytes": 290343,
+      "sha256": "70b33c27817ef335ee385b4b5b6d38af7a0bf732124ff5e0d796802ef11c603f",
+      "kind": "figure",
+      "presentation_guidance": "docs/gi-longevity-final/README.md#figures-for-presentations"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/predictions.csv",
+      "description": "All 2,057 native/shuffled numeric predictions, sequence/request hashes and scoring bounds; no DNA.",
+      "bytes": 399081,
+      "sha256": "cfcf503783514214d7f437f77c22f70bb216f165172a7916b0cac4ad8dc66a87",
+      "kind": "table",
+      "rows": 2057,
+      "column_count": 9,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "ensembl_species",
+          "dtype": "str"
+        },
+        {
+          "name": "condition",
+          "dtype": "str"
+        },
+        {
+          "name": "replicate",
+          "dtype": "int64"
+        },
+        {
+          "name": "sequence_sha256",
+          "dtype": "str"
+        },
+        {
+          "name": "request_hash",
+          "dtype": "str"
+        },
+        {
+          "name": "expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "scored_window_start",
+          "dtype": "int64"
+        },
+        {
+          "name": "scored_window_end",
+          "dtype": "int64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/preparation_provenance.json",
+      "description": "Sequence-preparation code and input/output hashes for the shuffle experiment.",
+      "bytes": 589,
+      "sha256": "840a38c82aaa75d22b2dc7a2fa137dacbc71aada83cdb2b9e7c5743e534d7051",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/protocol.json",
+      "description": "Frozen design and hyperparameters for the containing experiment.",
+      "bytes": 973,
+      "sha256": "38fac9f754b441d9be13f8c6ecfd84ba34c29d398d80a35f1b929dfe5a612e75",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/replicate_correlations.csv",
+      "description": "60 descriptive Spearman rho values: six genes times ten shuffle replicate indices.",
+      "bytes": 2708,
+      "sha256": "a1f2a5b8e87e6ccc129016f34fab53c1988c7b7e4f219a9ffca82f2bc6fdc85a",
+      "kind": "table",
+      "rows": 60,
+      "column_count": 4,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "replicate",
+          "dtype": "int64"
+        },
+        {
+          "name": "rho",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle/species_comparison.csv",
+      "description": "187 native/shuffled gene-species pairs, with mean, range and SD of shuffled expression.",
+      "bytes": 26757,
+      "sha256": "56bb49ef9a339c73ecd73474bad1a84beca6cf641a9fbe7f9631dcb90d859803",
+      "kind": "table",
+      "rows": 187,
+      "column_count": 13,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "ensembl_species",
+          "dtype": "str"
+        },
+        {
+          "name": "max_longevity_yrs",
+          "dtype": "float64"
+        },
+        {
+          "name": "adult_weight_g",
+          "dtype": "float64"
+        },
+        {
+          "name": "anage_order",
+          "dtype": "str"
+        },
+        {
+          "name": "original_expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "native_expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_min_expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_max_expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_sd_expression_log_tpm",
+          "dtype": "float64"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/shuffle-design.md",
+      "description": "Pre-perturbation design, input geometry, controls and disconnected execution instructions.",
+      "bytes": 5522,
+      "sha256": "93791ad8e7003d6ea401721e2de50510ed7f90fbda2009ace723219b34300ee2",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-candidates/species_expression.csv",
+      "description": "The original 187 observations plotted for the six candidates.",
+      "bytes": 47552,
+      "sha256": "5d3947227645e85425bf705d12fb2d42af26680b6add7d999f80bb35bef74096",
+      "kind": "table",
+      "rows": 187,
+      "column_count": 12,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "ensembl_species",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_name",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_common_name",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_order",
+          "dtype": "str"
+        },
+        {
+          "name": "max_longevity_yrs",
+          "dtype": "float64"
+        },
+        {
+          "name": "adult_weight_g",
+          "dtype": "float64"
+        },
+        {
+          "name": "expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "sequence_sha256",
+          "dtype": "str"
+        },
+        {
+          "name": "request_hash",
+          "dtype": "str"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/DATA_DICTIONARY.md",
+      "description": "Field definitions, units, primary keys and distinctions among analysis families.",
+      "bytes": 9604,
+      "sha256": "fc6c3bff06e27e3e50fa146fb5d6e0996cdbbf6836052a2d9055168add34086b",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-final/METHODOLOGY.md",
+      "description": "Complete sequence, association, perturbation, regression and validation methodology.",
+      "bytes": 9174,
+      "sha256": "991a998982eecde1d2a5d3bd484daefa3d895a60b78e8e0996567008a21e940c",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-final/README.md",
+      "description": "Human-readable findings, scope, navigation and interpretation for this analysis.",
+      "bytes": 7345,
+      "sha256": "b3d5e249a4751bf4fa0d125b6f19083e28d81f6caaa1e58d8b26d0c3c38da6e6",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-final/USAGE.md",
+      "description": "Runnable genome-to-GI-to-lifespan instructions, reference-human values and exact parameter formula.",
+      "bytes": 10464,
+      "sha256": "79621f31543894823d75babc7dbcb2379cef4ba7c1241fd6a5fa0d6781373000",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-final/reference_human_check.json",
+      "description": "Verification of independent sequence extraction, cached GI responses and both regressor outputs.",
+      "bytes": 1011,
+      "sha256": "1aa3b0e604e4b472c086f690d2babc94c3f1321d370b6baa4555a9eb6d0abf7c",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-final/reference_human_expression.csv",
+      "description": "One-row reference-human expression vector, with the two unavailable genes left missing.",
+      "bytes": 69473,
+      "sha256": "e5b2249ffb940f3ee37094062de7538ed93cf5bedfdb1fca9303ac6c91795ef3",
+      "kind": "table",
+      "rows": 1,
+      "column_count": 3037,
+      "index_column": {
+        "name": "ensembl_species",
+        "dtype": "string"
+      },
+      "feature_columns": {
+        "count": 3036,
+        "names_from": "docs/gi-lifespan-predictor/gene_annotations.csv:human_gene_id",
+        "name_pattern": "ENSG followed by 11 digits",
+        "dtype": "floating point or missing",
+        "unit": "GI-predicted log(TPM+1)"
+      },
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/reference_human_provenance.json",
+      "description": "Reference FASTA/GTF source URLs and digests, missing genes and expected human predictions.",
+      "bytes": 1286,
+      "sha256": "960a70af1683a16f2c32f405f24a264c47c4afd3cf99f498ef5485a02df9d3a8",
+      "kind": "metadata"
+    },
+    {
+      "path": "docs/gi-longevity-final/reference_human_tss.csv",
+      "description": "3,034 GRCh38/Ensembl116 TSS coordinates, orientations and expected DNA hashes.",
+      "bytes": 433143,
+      "sha256": "ff36f0757beff106f26d3a769e335dba2e386711809fd78d9b9a5563f57edfd0",
+      "kind": "table",
+      "rows": 3034,
+      "column_count": 10,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "transcript_id",
+          "dtype": "str"
+        },
+        {
+          "name": "contig",
+          "dtype": "str"
+        },
+        {
+          "name": "tss0",
+          "dtype": "int64"
+        },
+        {
+          "name": "strand",
+          "dtype": "str"
+        },
+        {
+          "name": "ensembl_assembly",
+          "dtype": "str"
+        },
+        {
+          "name": "window_start0",
+          "dtype": "int64"
+        },
+        {
+          "name": "window_end0",
+          "dtype": "int64"
+        },
+        {
+          "name": "sequence_sha256",
+          "dtype": "str"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/shuffle_comparison.csv",
+      "description": "Six-gene join of original-screen statistics and fresh-native/shuffled association statistics.",
+      "bytes": 2494,
+      "sha256": "376dd2d0618af1ab52a335bfc61b38dc695054fa48c6504a5653de23da6746ab",
+      "kind": "table",
+      "rows": 6,
+      "column_count": 25,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "n_species",
+          "dtype": "int64"
+        },
+        {
+          "name": "shuffle_replicates",
+          "dtype": "int64"
+        },
+        {
+          "name": "original_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_permutation_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_permutation_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffle_rho_median",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffle_rho_min",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffle_rho_max",
+          "dtype": "float64"
+        },
+        {
+          "name": "replicates_same_direction_as_original",
+          "dtype": "int64"
+        },
+        {
+          "name": "signed_rho_attenuation",
+          "dtype": "float64"
+        },
+        {
+          "name": "attenuation_bootstrap_ci_low",
+          "dtype": "float64"
+        },
+        {
+          "name": "attenuation_bootstrap_ci_high",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_retest_max_abs_difference",
+          "dtype": "float64"
+        },
+        {
+          "name": "mean_log_expression_change",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_shuffle_mean_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "native_q_bh_six",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_mean_q_bh_six",
+          "dtype": "float64"
+        },
+        {
+          "name": "original_screen_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "original_screen_permutation_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "original_screen_q_bh_3036",
+          "dtype": "float64"
+        },
+        {
+          "name": "shuffled_significant_bh_0_05",
+          "dtype": "bool"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/spearman/README.md",
+      "description": "Human-readable findings, scope, navigation and interpretation for this analysis.",
+      "bytes": 4497,
+      "sha256": "4fe70436c9a75a44a4a1d613a9fe3d2fc7630d260db25bab8ba641d7f0ea7d92",
+      "kind": "documentation"
+    },
+    {
+      "path": "docs/gi-longevity-final/spearman/all_genes.csv",
+      "description": "All 2,001 historical unadjusted Spearman tests, with permutation and asymptotic significance.",
+      "bytes": 337686,
+      "sha256": "704fe9e2f476348720d70926b20a5d6316703db6d2612652b0e7791555be203d",
+      "kind": "table",
+      "rows": 2001,
+      "column_count": 16,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "n_species",
+          "dtype": "int64"
+        },
+        {
+          "name": "status",
+          "dtype": "str"
+        },
+        {
+          "name": "spearman_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_permutations",
+          "dtype": "int64"
+        },
+        {
+          "name": "spearman_extreme_count",
+          "dtype": "int64"
+        },
+        {
+          "name": "spearman_mc_p_low",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_mc_p_high",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_asymptotic_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_q_bh_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_q_by_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_asymptotic_q_bh_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "significant_bh_0_05",
+          "dtype": "bool"
+        },
+        {
+          "name": "significant_by_0_05",
+          "dtype": "bool"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/spearman/hits.csv",
+      "description": "The exact original 30 BH-significant permutation Spearman hits, retaining full statistics.",
+      "bytes": 6303,
+      "sha256": "4561c2a1efa60f3462c4e34e3443f4a9a58d6ca1263a3956dcf7e8775197f9fd",
+      "kind": "table",
+      "rows": 30,
+      "column_count": 16,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "n_species",
+          "dtype": "int64"
+        },
+        {
+          "name": "status",
+          "dtype": "str"
+        },
+        {
+          "name": "spearman_rho",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_permutations",
+          "dtype": "int64"
+        },
+        {
+          "name": "spearman_extreme_count",
+          "dtype": "int64"
+        },
+        {
+          "name": "spearman_mc_p_low",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_mc_p_high",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_asymptotic_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_q_bh_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_q_by_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_asymptotic_q_bh_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "significant_bh_0_05",
+          "dtype": "bool"
+        },
+        {
+          "name": "significant_by_0_05",
+          "dtype": "bool"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/spearman/monte_carlo_sensitivity.csv",
+      "description": "Sensitivity of marginal discoveries to permutation-tail simulation uncertainty.",
+      "bytes": 216682,
+      "sha256": "06e4ab386cec7980657285d50e29b2007ee235c01aa8d3b6c39eed9e9d42489f",
+      "kind": "table",
+      "rows": 2001,
+      "column_count": 9,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "spearman_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_mc_p_low",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_mc_p_high",
+          "dtype": "float64"
+        },
+        {
+          "name": "spearman_q_bh_planned",
+          "dtype": "float64"
+        },
+        {
+          "name": "q_using_mc_lower_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "q_using_mc_upper_p",
+          "dtype": "float64"
+        },
+        {
+          "name": "cutoff_sensitive_to_mc_interval",
+          "dtype": "bool"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/spearman/observations.csv.gz",
+      "description": "63,906 original gene/species observations sufficient to reproduce the 30-hit screen.",
+      "bytes": 3051363,
+      "sha256": "bde11926c8e0e7c2dc0b9d9ef0beb01ab5b6bff42aa8ab552e15a4cf7116dccb",
+      "kind": "table",
+      "rows": 63906,
+      "column_count": 7,
+      "columns": [
+        {
+          "name": "human_gene_id",
+          "dtype": "str"
+        },
+        {
+          "name": "gene_name",
+          "dtype": "str"
+        },
+        {
+          "name": "ensembl_species",
+          "dtype": "str"
+        },
+        {
+          "name": "anage_order",
+          "dtype": "str"
+        },
+        {
+          "name": "max_longevity_yrs",
+          "dtype": "float64"
+        },
+        {
+          "name": "expression_log_tpm",
+          "dtype": "float64"
+        },
+        {
+          "name": "request_hash",
+          "dtype": "str"
+        }
+      ],
+      "field_definitions": "docs/gi-longevity-final/DATA_DICTIONARY.md"
+    },
+    {
+      "path": "docs/gi-longevity-final/spearman/provenance.json",
+      "description": "Source identity, snapshot and checksums for the containing experiment/export.",
+      "bytes": 1404,
+      "sha256": "cedf3b07e12228f042dc0e79d405d35be0d4622b44ced87a5499321fc329f498",
+      "kind": "metadata"
+    },
+    {
+      "path": "longevity/gi_api.py",
+      "description": "Validated fixed-context GI client, request hashing, response caching and inference runner.",
+      "bytes": 29075,
+      "sha256": "8244aca95f24d591fd5bfa1fae0151c75696480c92f5384894b1a62cdbc9a12a",
+      "kind": "code"
+    },
+    {
+      "path": "longevity/gi_lifespan_predictor.py",
+      "description": "Training-only feature screening, nested CV, ridge fitting, export and numeric inference.",
+      "bytes": 34795,
+      "sha256": "2f4018e213d7edfc29527913b53a7862d2269a5ef2637e427b3b8aef833650f3",
+      "kind": "code"
+    },
+    {
+      "path": "longevity/gi_prepare.py",
+      "description": "Mammal/orthologue discovery, canonical transcript and oriented-window preparation.",
+      "bytes": 27920,
+      "sha256": "2cf303fd24a001ebc3be72bd3f6055b82e93c30cf3f6898cf85775250a39fffa",
+      "kind": "code"
+    },
+    {
+      "path": "longevity/gi_sequence_lifespan.py",
+      "description": "Prepare gene-sense TSS FASTA; run fixed-context GI inference; apply saved lifespan models.",
+      "bytes": 10379,
+      "sha256": "377e9dae0e7a9a1fceddce1c658ed35a56936e859260785f00f521768ba0748a",
+      "kind": "code"
+    },
+    {
+      "path": "longevity/gi_tss_shuffle.py",
+      "description": "Reproducible local block shuffles and native/shuffled API prediction.",
+      "bytes": 14658,
+      "sha256": "10e3f47340f84debee8b3547ffa3613de8d5315b53b225e4452f6be35f9d5cc2",
+      "kind": "code"
+    },
+    {
+      "path": "longevity/gi_tss_shuffle_report.py",
+      "description": "Paired species analysis, permutation tests, bootstrap and perturbation figures.",
+      "bytes": 18946,
+      "sha256": "320d34a3e65046c3603c5728367d84dab234510f145947fd46d20e5d0645dd85",
+      "kind": "code"
+    },
+    {
+      "path": "pyproject.toml",
+      "description": "Python project and analysis dependencies; use uv sync --extra analysis.",
+      "bytes": 1191,
+      "sha256": "a9fb894f3687b41c34064345344f6e3e9a30ed6e68c3b824981e7dbb2fce596b",
+      "kind": "configuration"
+    },
+    {
+      "path": "scripts/catalog_gi_artifacts.py",
+      "description": "Generate this inventory, including artifact checksums and table schemas.",
+      "bytes": 11122,
+      "sha256": "f5955a6968dc2874ea2a8a32adc21e25269ad3a5898c0a41bf175b2e6608e849",
+      "kind": "code"
+    },
+    {
+      "path": "scripts/export_gi_final_artifacts.py",
+      "description": "Export original 30-hit results and human reference manifests from the archived dataset.",
+      "bytes": 4499,
+      "sha256": "8b57420e2fdffed1eb369cd43c33f79fffff4b2104735b80525342b5bbc1988d",
+      "kind": "code"
+    },
+    {
+      "path": "scripts/plot_gi_candidates.py",
+      "description": "Regenerate original six-candidate scatterplots from committed CSVs.",
+      "bytes": 3529,
+      "sha256": "e28a311185f03faf65bd47ed98717fa79b16712e8a950d757c46281a318ad556",
+      "kind": "code"
+    },
+    {
+      "path": "scripts/predict_gi_lifespan.py",
+      "description": "Apply saved weights to a numeric expression CSV without retraining.",
+      "bytes": 1001,
+      "sha256": "3e374298549677ecd7513873e44ed4eae6619f9df08739453ede1f32d48a038e",
+      "kind": "code"
+    },
+    {
+      "path": "scripts/reproduce_gi_spearman.py",
+      "description": "Verify all original Spearman rho/p/q and extreme counts from committed observations.",
+      "bytes": 3477,
+      "sha256": "71d50088743b8ba5b6440c7122f80f16aeb984066b74e10a6e0a0aacc2e84802",
+      "kind": "code"
+    },
+    {
+      "path": "scripts/run_gi_tss_shuffle.sh",
+      "description": "Run/resume shuffled inference and publish its final report.",
+      "bytes": 647,
+      "sha256": "0cc5b2742a291958a0f5cdc80693b7b7faa0bd1cdf2aa56496ef0d5e8608f1c2",
+      "kind": "code"
+    },
+    {
+      "path": "tests/test_gi_expression.py",
+      "description": "Focused automated verification for gi_expression.",
+      "bytes": 12417,
+      "sha256": "457aa2a870dd653657eba61458327c0e4f2fbfaaff0dbbb2ef78f33c93b475f2",
+      "kind": "code"
+    },
+    {
+      "path": "tests/test_gi_lifespan_predictor.py",
+      "description": "Focused automated verification for gi_lifespan_predictor.",
+      "bytes": 3128,
+      "sha256": "8dc0a03535037563ad2afcd8c7a973747ecbbb053c6bbc81653e6bdecb87f033",
+      "kind": "code"
+    },
+    {
+      "path": "tests/test_gi_sequence_lifespan.py",
+      "description": "Focused automated verification for gi_sequence_lifespan.",
+      "bytes": 3239,
+      "sha256": "4ab5537e4f1dfef8854a49a9af9f1287929a5332404fbd968b682f237d8c9f67",
+      "kind": "code"
+    },
+    {
+      "path": "tests/test_gi_tss_shuffle.py",
+      "description": "Focused automated verification for gi_tss_shuffle.",
+      "bytes": 3585,
+      "sha256": "dea15b2190fbce345e65a09444d90cff00578d56c67107bb1b5349e0fcfe7933",
+      "kind": "code"
+    },
+    {
+      "path": "uv.lock",
+      "description": "Locked Python dependency resolutions.",
+      "bytes": 524657,
+      "sha256": "e54fbca554e1880d05e7a184743e303a8f4cf641227c5b32a3ccd7d5645912ab",
+      "kind": "configuration"
+    }
+  ]
+}
