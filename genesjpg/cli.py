@@ -1,6 +1,7 @@
 """Command line: python -m genesjpg <command> --data DIR ...
 
-Stages: download -> embed -> train-align -> train-prior -> train-decoder -> generate.
+Stages: download (BIOSCAN-5M) or prepare (a genes.jpg genome <-> image dataset) -> embed -> train-align
+-> train-prior -> train-decoder -> generate.
 """
 
 from __future__ import annotations
@@ -31,6 +32,12 @@ def _load(data: str):
     return recs, emb, index
 
 
+def _dna_control(data: str) -> str:
+    """The run's DNA control experiment, as recorded by ``prepare`` (``none`` for older or BIOSCAN runs)."""
+    meta = Path(data) / "prepare.json"
+    return json.loads(meta.read_text()).get("dna_control", "none") if meta.exists() else "none"
+
+
 def _split(recs, emb, index, split):
     """Records of one split with their image and taxonomy-text embeddings (row-aligned)."""
     rs = [r for r in recs if r["split"] == split and r["processid"] in index]
@@ -41,6 +48,22 @@ def _split(recs, emb, index, split):
 def cmd_download(a):
     """Download the paired BIOSCAN-5M subset into --data."""
     download_subset(a.data, n_train=a.n_train, n_eval=a.n_eval, n_blocks=a.n_blocks)
+
+
+def cmd_prepare(a):
+    """Write records.csv into --data from a genome <-> image dataset (nuclear-genome windows)."""
+    from .genomes import prepare_records
+
+    prepare_records(
+        a.dataset,
+        a.data,
+        unseen=a.unseen,
+        val_frac=a.val_frac,
+        seed=a.seed,
+        genome_cache=a.genome_cache,
+        workers=a.workers,
+        dna_control=a.dna_control,
+    )
 
 
 def cmd_embed(a):
@@ -67,30 +90,53 @@ def _eval_sets(recs, emb, index):
     return {s: _split(recs, emb, index, s) for s in ("val", "val_unseen")}
 
 
+def _pooled_gallery(evals):
+    """All held-out images (val + val_unseen) with their species and genus labels."""
+    rs = [r for s in evals for r in evals[s][0]]
+    im = torch.cat([evals[s][1] for s in evals])
+    return im, [label(r) for r in rs], [r["genus"] for r in rs]
+
+
+def _eval_metrics(q, rs, im, pooled):
+    """Per-split retrieval metrics plus species/genus top-1 against the pooled held-out gallery.
+
+    Every image of a species shares one DNA input, so specimen_top1/5 are at chance by construction; and with
+    few species in a split its own species_top1 is easy (1.0 when it holds one species): read pooled_*."""
+    from .align import pooled_metrics, retrieval_metrics
+
+    labs, gens = [label(r) for r in rs], [r["genus"] for r in rs]
+    return {**retrieval_metrics(q, im, labs, gens), **pooled_metrics(q, labs, gens, *pooled)}
+
+
 def cmd_train_align(a):
     """Steps 1-2: fine-tune ModernGENA against BioCLIP embeddings; writes align.pt + align_metrics.json."""
-    from .align import AlignModel, retrieval_metrics, train_align
+    from .align import AlignModel, train_align
     from .encoders import DNAEncoder
+    from .genomes import embed_records, window_sampler
     from .pipeline import save_align
 
     _, ckpt = _paths(a.data)
     recs, emb, index = _load(a.data)
     train, img, txt = _split(recs, emb, index, "train")
     evals = _eval_sets(recs, emb, index)
-    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers))
+    pooled = _pooled_gallery(evals)
+    shuffle = _dna_control(a.data) == "shuffle_tokens"
+    if shuffle:
+        print("DNA control: token order shuffled in every window")
+    model = AlignModel(DNAEncoder(freeze_layers=a.freeze_layers, shuffle_tokens=shuffle))
 
     def eval_fn(m):
         out = {}
         for s, (rs, im, _) in evals.items():
             if rs:
-                q = m.dna.encode([r["dna_barcode"] for r in rs])
-                met = retrieval_metrics(q, im, [label(r) for r in rs], [r["genus"] for r in rs])
+                met = _eval_metrics(embed_records(m.dna, rs), rs, im, pooled)
                 out.update({f"{s}/{k}": v for k, v in met.items()})
         return out
 
+    genome = bool(train[0].get("genome"))  # genome mode: fresh random windows every batch
     train_align(
         model,
-        [r["dna_barcode"] for r in train],
+        None if genome else [r["dna_barcode"] for r in train],
         [label(r) for r in train],
         img,
         txt,
@@ -100,16 +146,21 @@ def cmd_train_align(a):
         text_weight=a.text_weight,
         eval_fn=eval_fn,
         device=a.device,
+        seed=a.seed,
+        sample_dna=window_sampler(train, seed=a.seed) if genome else None,
     )
-    save_align(model.cpu(), ckpt / "align.pt")
-    metrics = eval_fn(model)
+    save_align(
+        model.cpu(), ckpt / "align.pt"
+    )  # save first, so a failing final eval cannot lose the run
+    metrics = eval_fn(model.to(a.device))  # back on the training device: on CPU this takes hours
     (ckpt / "align_metrics.json").write_text(json.dumps(metrics, indent=2))
     print(json.dumps(metrics, indent=2))
 
 
 def cmd_train_prior(a):
     """Step 3: train the diffusion prior on (aligned DNA emb, image emb) pairs; writes prior.pt."""
-    from .align import retrieval_metrics
+    from .align import pooled_metrics, retrieval_metrics
+    from .genomes import embed_records
     from .pipeline import load_align, save_prior
     from .prior import DiffusionPrior, train_prior
 
@@ -117,27 +168,29 @@ def cmd_train_prior(a):
     recs, emb, index = _load(a.data)
     align = load_align(ckpt / "align.pt").to(a.device)
     train, img, _ = _split(recs, emb, index, "train")
-    cond = align.dna.encode([r["dna_barcode"] for r in train])
+    cond = embed_records(align.dna, train)
     evals = {}
-    for s, (rs, im, _) in _eval_sets(recs, emb, index).items():
+    eval_sets = _eval_sets(recs, emb, index)
+    pooled = _pooled_gallery(eval_sets)
+    for s, (rs, im, _) in eval_sets.items():
         if rs:
-            q = align.dna.encode([r["dna_barcode"] for r in rs])
+            q = embed_records(align.dna, rs)
             evals[s] = (q, im, [label(r) for r in rs], [r["genus"] for r in rs])
-            base = retrieval_metrics(q, im, evals[s][2], evals[s][3])
+            base = _eval_metrics(q, rs, im, pooled)
             print(f"{s} baseline (aligned DNA emb, no prior): {base}")
 
     def eval_fn(p):
         out = {}
         for s, (q, im, labs, gens) in evals.items():
-            g = torch.Generator().manual_seed(0)
+            g = torch.Generator(device=a.device).manual_seed(0)
             sampled = p.sample(
                 q.to(a.device), steps=a.sample_steps, guidance=a.guidance, generator=g
             ).cpu()
             out[f"{s}/cos"] = (sampled * im).sum(-1).mean().item()
             met = retrieval_metrics(sampled, im, labs, gens)
-            out.update(
-                {f"{s}/{k}": v for k, v in met.items() if k in ("species_top1", "genus_top1")}
-            )
+            met.update(pooled_metrics(sampled, labs, gens, *pooled))
+            keep = ("species_top1", "genus_top1", "pooled_species_top1", "pooled_genus_top1")
+            out.update({f"{s}/{k}": v for k, v in met.items() if k in keep})
         return out
 
     prior = DiffusionPrior(width=a.width, depth=a.depth)
@@ -163,7 +216,14 @@ def cmd_train_decoder(a):
 
     root, ckpt = _paths(a.data)
     recs, emb, index = _load(a.data)
-    recs = [r for r in recs if r["processid"] in index]
+    # the decoder sees no DNA, but training it on val_unseen photos would leak the held-out species' looks
+    # into "generate an unseen species"; --include-unseen trains on every image (e.g. a final model)
+    recs = [
+        r
+        for r in recs
+        if r["processid"] in index and (a.include_unseen or r["split"] != "val_unseen")
+    ]
+    print(f"decoder: training on {len(recs)} images")
     decoder = EmbeddingDecoder(a.model_id, n_tokens=a.n_tokens, train_unet=a.train_unet)
     train_decoder(
         decoder,
@@ -182,14 +242,17 @@ def cmd_train_decoder(a):
 
 def cmd_generate(a):
     """Print the nearest real specimens for a barcode and, if decoder.pt exists, save generated images."""
+    from .genomes import PackedGenome
     from .pipeline import GenomeToImage
 
     root, ckpt = _paths(a.data)
     recs, emb, _ = _load(a.data)
     seq = a.dna
     if a.processid:
-        rec = next(r for r in recs if r["processid"] == a.processid)
-        seq = rec["dna_barcode"]
+        rec = next((r for r in recs if r["processid"] == a.processid), None)
+        if rec is None:
+            raise SystemExit(f"processid {a.processid!r} not found in records.csv")
+        seq = PackedGenome(rec["genome"]) if rec.get("genome") else rec["dna_barcode"]
         print(f"{a.processid}: true label {label(rec)}")
     by_id = {r["processid"]: r for r in recs}
     gallery = (emb["image"], [by_id[pid] for pid in emb["processid"]])
@@ -211,6 +274,76 @@ def cmd_generate(a):
     print(f"saved {a.n} images to {out}")
 
 
+def cmd_evaluate(a):
+    """Score baselines and trained steps on held-out species; writes evaluation.json (see genesjpg.evaluate)."""
+    import csv
+
+    from . import evaluate as ev
+
+    root, ckpt = _paths(a.data)
+    recs, emb, index = _load(a.data)
+    table = ev.species_table(recs, emb, index)
+    tests = None
+    if (
+        root / "unseen_species.csv"
+    ).exists():  # optional taxid -> test-name map written with the split
+        with open(root / "unseen_species.csv", newline="") as f:
+            tests = {r["ncbi_taxid"]: r["test"] for r in csv.DictReader(f) if r.get("test")}
+    groups = ev.held_out_groups(table, tests)
+    targets = sorted({t for g in groups.values() for t in g})
+    genome = bool(next(iter(table.values()))["rec"].get("genome"))
+    methods: dict[str, dict] = {}
+    methods["chance"] = {g: ev.chance(ts, table) for g, ts in groups.items()}
+    if genome and "kmer_nn" in a.methods:
+        q, nearest = ev.kmer_nn_queries(table, targets)
+        methods["kmer_nn"] = {g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()}
+        (root / "kmer_nearest.json").write_text(
+            json.dumps(
+                {
+                    table[t]["ranks"]["species"]: table[n]["ranks"]["species"]
+                    for t, n in nearest.items()
+                },
+                indent=1,
+            )
+        )
+    if "captions" in a.methods:
+        from .encoders import BioCLIP
+
+        clip = BioCLIP(device=a.device)
+        for rank in ev.RANKS:
+            q = ev.caption_queries(table, targets, clip, rank)
+            methods[f"caption_{rank}"] = {
+                g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
+            }
+        del clip
+    if genome and "frozen_linear" in a.methods:
+        shuffle = _dna_control(a.data) == "shuffle_tokens"
+        q = ev.frozen_linear_queries(table, targets, a.device, shuffle_tokens=shuffle)
+        methods["frozen_linear"] = {
+            g: ev.score({t: q[t] for t in ts}, table) for g, ts in groups.items()
+        }
+    if (ckpt / "align.pt").exists() and "model" in a.methods:
+        from .pipeline import load_align, load_prior
+
+        align = load_align(ckpt / "align.pt").to(a.device)
+        prior = load_prior(ckpt / "prior.pt").to(a.device) if (ckpt / "prior.pt").exists() else None
+        aligned, sampled = ev.model_queries(table, targets, align, prior)
+        methods["aligned"] = {
+            g: ev.score({t: aligned[t] for t in ts}, table) for g, ts in groups.items()
+        }
+        if sampled:
+            methods["prior"] = {
+                g: ev.score({t: sampled[t] for t in ts}, table) for g, ts in groups.items()
+            }
+    out = {"groups": {g: len(ts) for g, ts in groups.items()}, "methods": methods}
+    (root / "evaluation.json").write_text(json.dumps(out, indent=2))
+    cols = [f"{r}_top1" for r in ev.RANKS]
+    for g, n in out["groups"].items():
+        print(f"\n{g} ({n} species): top-1 at " + " / ".join(ev.RANKS))
+        for m, res in methods.items():
+            print(f"  {m:16s} " + "  ".join(f"{res[g][c]:.2f}" for c in cols))
+
+
 def main(argv=None):
     """Parse arguments and run one pipeline command."""
     p = argparse.ArgumentParser(prog="genesjpg")
@@ -224,11 +357,35 @@ def main(argv=None):
     s.add_argument("--n-blocks", type=int, default=20)
     s.set_defaults(fn=cmd_download)
 
+    s = sub.add_parser("prepare")
+    s.add_argument(
+        "--dataset", required=True, help="built dataset dir (species/genomes/images/pairs.csv)"
+    )
+    s.add_argument(
+        "--unseen", type=int, nargs="*", default=[], help="species taxids held out as val_unseen"
+    )
+    s.add_argument("--val-frac", type=float, default=0.2)
+    s.add_argument("--workers", type=int, default=8, help="parallel genome packing processes")
+    s.add_argument(
+        "--dna-control",
+        choices=["none", "shuffle_tokens", "permute_genomes"],
+        default="none",
+        help="control experiment: shuffle token order in every window, or give species each other's genomes",
+    )
+    s.add_argument(
+        "--genome-cache",
+        default=None,
+        help="packed genomes dir (default: <dataset>/../_packed_genomes)",
+    )
+    s.add_argument("--seed", type=int, default=0)
+    s.set_defaults(fn=cmd_prepare)
+
     s = sub.add_parser("embed")
     s.add_argument("--batch-size", type=int, default=64)
     s.set_defaults(fn=cmd_embed)
 
     s = sub.add_parser("train-align")
+    s.add_argument("--seed", type=int, default=0)
     s.add_argument("--epochs", type=int, default=5)
     s.add_argument("--batch-size", type=int, default=128)
     s.add_argument("--lr", type=float, default=1e-4)
@@ -242,6 +399,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_train_align)
 
     s = sub.add_parser("train-prior")
+    s.add_argument("--seed", type=int, default=0)
     s.add_argument("--epochs", type=int, default=50)
     s.add_argument("--batch-size", type=int, default=256)
     s.add_argument("--lr", type=float, default=3e-4)
@@ -252,6 +410,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_train_prior)
 
     s = sub.add_parser("train-decoder")
+    s.add_argument("--seed", type=int, default=0)
     s.add_argument("--model-id", default="stable-diffusion-v1-5/stable-diffusion-v1-5")
     s.add_argument("--epochs", type=int, default=1)
     s.add_argument("--batch-size", type=int, default=8)
@@ -260,7 +419,17 @@ def main(argv=None):
     s.add_argument("--n-tokens", type=int, default=8)
     s.add_argument("--train-unet", action="store_true")
     s.add_argument("--max-steps", type=int, default=None)
+    s.add_argument("--include-unseen", action="store_true", help="also train on val_unseen photos")
     s.set_defaults(fn=cmd_train_decoder)
+
+    s = sub.add_parser("evaluate")
+    s.add_argument(
+        "--methods",
+        nargs="*",
+        default=["kmer_nn", "captions", "frozen_linear", "model"],
+        help="chance always runs",
+    )
+    s.set_defaults(fn=cmd_evaluate)
 
     s = sub.add_parser("generate")
     g = s.add_mutually_exclusive_group(required=True)
@@ -276,4 +445,6 @@ def main(argv=None):
     s.set_defaults(fn=cmd_generate)
 
     a = p.parse_args(argv)
+    # seeds weight init, prior/decoder noise and batch order; GPU kernels can still differ in the last bits
+    torch.manual_seed(getattr(a, "seed", 0))
     a.fn(a)

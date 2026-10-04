@@ -50,12 +50,18 @@ def _list_split(zip_name: str, split: str) -> list[Entry]:
 
 
 def _select_blocks(entries: list[Entry], n: int, n_blocks: int) -> list[list[Entry]]:
-    """Pick n entries as n_blocks contiguous runs spread evenly over the archive."""
+    """Pick exactly n entries as n_blocks contiguous, non-overlapping runs spread evenly over
+    the archive."""
     n = min(n, len(entries))
     n_blocks = max(1, min(n_blocks, n))
-    per = n // n_blocks
-    stride = len(entries) // n_blocks
-    return [entries[b * stride : b * stride + per] for b in range(n_blocks)]
+    sizes = [n // n_blocks + (b < n % n_blocks) for b in range(n_blocks)]
+    gap = len(entries) - n
+    blocks, taken = [], 0
+    for b, size in enumerate(sizes):
+        start = taken + b * gap // n_blocks
+        blocks.append(entries[start : start + size])
+        taken += size
+    return blocks
 
 
 def _range(url: str, start: int, end: int) -> bytes:
@@ -96,6 +102,19 @@ def _stream_metadata(wanted: set[str]) -> dict[str, dict]:
     dec = zlib.decompressobj(-15)
     pending = b""
     header: list[str] | None = None
+
+    def add(line: bytes) -> None:
+        nonlocal header
+        if not line.strip():
+            return
+        rec = next(csv.reader([line.decode("utf-8")]))
+        if header is None:
+            header = rec
+            return
+        row = dict(zip(header, rec))
+        if row.get("processid") in wanted:
+            rows[row["processid"]] = row
+
     with requests.get(
         url,
         headers={"Range": f"bytes={start}-{start + info.compress_size - 1}"},
@@ -107,15 +126,12 @@ def _stream_metadata(wanted: set[str]) -> dict[str, dict]:
             pending += dec.decompress(chunk)
             *lines, pending = pending.split(b"\n")
             for line in lines:
-                rec = next(csv.reader([line.decode("utf-8")]))
-                if header is None:
-                    header = rec
-                    continue
-                row = dict(zip(header, rec))
-                if row.get("processid") in wanted:
-                    rows[row["processid"]] = row
+                add(line)
             if len(rows) == len(wanted):
-                break
+                return rows
+    pending += dec.flush()
+    for line in pending.split(b"\n"):
+        add(line)
     return rows
 
 
@@ -174,7 +190,19 @@ def taxonomy_text(r: dict) -> str:
     """Taxonomic caption in BioCLIP's 'a photo of <taxonomy>' style."""
     names = [r.get(k, "").strip() for k in TAXONOMY]
     names = [n for n in names if n and n.lower() != "not_classified"]
-    return "a photo of " + " ".join(["Animalia Arthropoda Insecta", *names])
+    genus, species = r.get("genus", "").strip(), r.get("species", "").strip()
+    if genus and species.startswith(genus + " "):
+        names[-1] = species[
+            len(genus) + 1 :
+        ]  # BioCLIP style: "... Genus epithet", genus not repeated
+    # BIOSCAN records carry no ranks above order (all insects); other datasets add kingdom/phylum/class
+    # columns, whose empty values are skipped rather than filled with the insect lineage
+    higher_ranks = ("kingdom", "phylum", "class")
+    if any(k in r for k in higher_ranks):
+        higher = [(r.get(k) or "").strip() for k in higher_ranks]
+    else:
+        higher = ["Animalia", "Arthropoda", "Insecta"]
+    return "a photo of " + " ".join([*(h for h in higher if h), *names])
 
 
 def label(r: dict) -> str:

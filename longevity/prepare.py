@@ -245,7 +245,8 @@ def md5_ok(path: Path) -> bool:
     return got == want
 
 
-def load_tables(dataset: Path, anage_table: Path | None, threads: int):
+def load_tables(dataset: Path, anage_table: Path | None, threads: int,
+                assembly_accessions: set[str] | None = None):
     """(genomes, longevity, species) tables.
 
     A finished dataset ships genomes/longevity/species parquet files. A dataset that is still
@@ -254,12 +255,16 @@ def load_tables(dataset: Path, anage_table: Path | None, threads: int):
     """
     if (dataset / "genomes.parquet").exists():
         genomes = pd.read_parquet(dataset / "genomes.parquet")
+        if assembly_accessions is not None:
+            genomes = genomes[genomes.assembly_accession.isin(assembly_accessions)].copy()
         genomes["path"] = genomes.sequence_file.map(lambda p: dataset / p)
         return (genomes, pd.read_parquet(dataset / "longevity.parquet"),
                 pd.read_parquet(dataset / "species.parquet"))
     if anage_table is None:
         raise SystemExit(f"{dataset} has no genomes.parquet; pass --anage-table")
     files = sorted(dataset.glob("genomes/*/*_genomic.fna.gz"))
+    if assembly_accessions is not None:
+        files = [f for f in files if f.parent.name in assembly_accessions]
     with ThreadPoolExecutor(threads) as ex:
         ok = list(ex.map(md5_ok, files))
     bad = [f.name for f, o in zip(files, ok) if not o]

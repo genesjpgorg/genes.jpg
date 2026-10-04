@@ -1,4 +1,4 @@
-"""End-to-end inference: DNA barcode -> aligned DNA embedding -> prior -> decoder -> image.
+"""End-to-end inference: DNA (barcode or packed genome) -> aligned DNA embedding -> prior -> decoder -> image.
 
 Also holds checkpoint save/load helpers for the alignment model and the prior.
 """
@@ -16,14 +16,17 @@ from .prior import DiffusionPrior
 
 
 def save_align(model: AlignModel, path: str | Path) -> None:
-    """Save the full alignment model (fine-tuned ModernGENA + head + temperature)."""
-    torch.save({"state_dict": model.state_dict()}, path)
+    """Save the full alignment model (fine-tuned ModernGENA + head + temperature) and its DNA control flag."""
+    shuffle = bool(getattr(model.dna.tokenizer, "shuffle", False))
+    torch.save({"state_dict": model.state_dict(), "shuffle_tokens": shuffle}, path)
 
 
 def load_align(path: str | Path, dna_encoder: DNAEncoder | None = None) -> AlignModel:
-    """Load an alignment checkpoint into ``dna_encoder`` (default: a fresh ModernGENA ``DNAEncoder``)."""
-    model = AlignModel(dna_encoder or DNAEncoder())
-    model.load_state_dict(torch.load(path, map_location="cpu")["state_dict"])
+    """Load an alignment checkpoint into ``dna_encoder`` (default: a fresh ModernGENA ``DNAEncoder``, with the
+    token-shuffle control restored if the checkpoint was trained with it)."""
+    state = torch.load(path, map_location="cpu")
+    model = AlignModel(dna_encoder or DNAEncoder(shuffle_tokens=state.get("shuffle_tokens", False)))
+    model.load_state_dict(state["state_dict"])
     return model.eval()
 
 
@@ -34,6 +37,8 @@ def save_prior(prior: DiffusionPrior, path: str | Path) -> None:
         "cond_dim": prior.null_cond.numel(),
         "width": prior.width,
         "depth": len(prior.blocks),
+        "timesteps": prior.timesteps,
+        "cond_drop": prior.cond_drop,
     }
     torch.save({"config": cfg, "state_dict": prior.state_dict()}, path)
 
@@ -97,12 +102,20 @@ class GenomeToImage:
         """Aligned, unit-norm DNA embeddings (len(seqs), 512)."""
         return self.align.dna.encode(seqs).to(self.device)
 
+    def _query(self, dna) -> torch.Tensor:
+        """(1, 512) embedding of a DNA string or of a ``PackedGenome`` (mean over fixed windows)."""
+        from .genomes import PackedGenome, embed_genome
+
+        if isinstance(dna, PackedGenome):
+            return embed_genome(self.align.dna, dna)[None].to(self.device)
+        return self.embed_dna([dna])
+
     def image_embeddings(
         self, seq: str, n: int = 1, steps: int = 50, guidance: float = 2.0, seed: int = 0
     ):
-        """Sample ``n`` plausible BioCLIP image embeddings for one barcode with the prior."""
+        """Sample ``n`` plausible BioCLIP image embeddings for one barcode or genome with the prior."""
         g = torch.Generator(device=self.device).manual_seed(seed)
-        cond = self.embed_dna([seq]).repeat(n, 1)
+        cond = self._query(seq).repeat(n, 1)
         return self.prior.sample(cond, steps=steps, guidance=guidance, generator=g)
 
     def retrieve(self, seq: str, k: int = 5) -> list[tuple[dict, float]]:
@@ -110,14 +123,14 @@ class GenomeToImage:
         if self.gallery is None:
             raise ValueError("no gallery loaded")
         emb, records = self.gallery
-        sims = (self.embed_dna([seq]).cpu() @ emb.T)[0]
+        sims = (self._query(seq).cpu() @ emb.T)[0]
         top = sims.topk(min(k, len(records)))
         return [(records[i], s) for s, i in zip(top.values.tolist(), top.indices.tolist())]
 
     def generate(
         self, seq: str, n: int = 1, seed: int = 0, steps: int = 30, guidance: float = 5.0, size=None
     ):
-        """Generate ``n`` images for one barcode: prior samples ``n`` image embeddings, decoder renders each."""
+        """Generate ``n`` images for one barcode or ``PackedGenome``: prior samples ``n`` image embeddings, decoder renders each."""
         if self.decoder is None:
             raise ValueError("no decoder checkpoint loaded")
         emb = self.image_embeddings(seq, n=n, seed=seed)
