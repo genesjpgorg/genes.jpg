@@ -1,0 +1,730 @@
+{
+  "comparison_sha256": "0a929f9776d950c936353649cd19290c33411451e7cc70381071571f8ced752a",
+  "budget": "epochs",
+  "cohort": {
+    "assemblies": 98,
+    "species_per_split": {
+      "train": 64,
+      "val": 16,
+      "test": 18
+    }
+  },
+  "final": {
+    "CDS": {
+      "val": {
+        "kind": "val",
+        "step": 5040,
+        "epoch": 18.0,
+        "seconds": 7.3,
+        "pair_mse_z": 0.8287166102463659,
+        "pair_mae_log10": 0.189383869572241,
+        "species_mae_log10": 0.1584067065679502,
+        "baseline_species_mae_log10": 0.1578624740547213,
+        "n_species": 16,
+        "n_pairs": 7905,
+        "species_spearman": 0.3029411764705882,
+        "species_pearson": 0.2087457294939482,
+        "species": [
+          {
+            "ncbi_taxid": 36245,
+            "scientific_name": "Alcedo atthis",
+            "class": "Aves",
+            "true_log10": 1.3222,
+            "pred_log10": 1.128600001335144,
+            "pred_sd": 0.13410000503063202,
+            "n_genes": 533
+          },
+          {
+            "ncbi_taxid": 54383,
+            "scientific_name": "Eurypyga helias",
+            "class": "Aves",
+            "true_log10": 1.1761,
+            "pred_log10": 1.27839994430542,
+            "pred_sd": 0.133200004696846,
+            "n_genes": 435
+          },
+          {
+            "ncbi_taxid": 54496,
+            "scientific_name": "Rallus aquaticus",
+            "class": "Aves",
+            "true_log10": 0.9494,
+            "pred_log10": 1.249899983406067,
+            "pred_sd": 0.13580000400543213,
+            "n_genes": 523
+          },
+          {
+            "ncbi_taxid": 56292,
+            "scientific_name": "Coracias caudatus",
+            "class": "Aves",
+            "true_log10": 1.1367,
+            "pred_log10": 1.2690000534057617,
+            "pred_sd": 0.12720000743865967,
+            "n_genes": 501
+          },
+          {
+            "ncbi_taxid": 56349,
+            "scientific_name": "Falco femoralis",
+            "class": "Aves",
+            "true_log10": 1.0792,
+            "pred_log10": 1.28410005569458,
+            "pred_sd": 0.1315000057220459,
+            "n_genes": 525
+          },
+          {
+            "ncbi_taxid": 57426,
+            "scientific_name": "Momotus momota",
+            "class": "Aves",
+            "true_log10": 1.3075,
+            "pred_log10": 1.2857999801635742,
+            "pred_sd": 0.1290999948978424,
+            "n_genes": 479
+          },
+          {
+            "ncbi_taxid": 100859,
+            "scientific_name": "Vanellus vanellus",
+            "class": "Aves",
+            "true_log10": 1.3892,
+            "pred_log10": 1.3566999435424805,
+            "pred_sd": 0.10920000076293945,
+            "n_genes": 535
+          },
+          {
+            "ncbi_taxid": 111811,
+            "scientific_name": "Caprimulgus europaeus",
+            "class": "Aves",
+            "true_log10": 1.0755,
+            "pred_log10": 1.217900037765503,
+            "pred_sd": 0.1282999962568283,
+            "n_genes": 399
+          },
+          {
+            "ncbi_taxid": 120794,
+            "scientific_name": "Falco rusticolus",
+            "class": "Aves",
+            "true_log10": 1.1303,
+            "pred_log10": 1.3055000305175781,
+            "pred_sd": 0.12359999865293503,
+            "n_genes": 532
+          },
+          {
+            "ncbi_taxid": 148593,
+            "scientific_name": "Falco cenchroides",
+            "class": "Aves",
+            "true_log10": 0.8451,
+            "pred_log10": 1.2862999439239502,
+            "pred_sd": 0.12680000066757202,
+            "n_genes": 523
+          },
+          {
+            "ncbi_taxid": 171273,
+            "scientific_name": "Pluvialis squatarola",
+            "class": "Aves",
+            "true_log10": 1.4082,
+            "pred_log10": 1.3270000219345093,
+            "pred_sd": 0.11710000038146973,
+            "n_genes": 495
+          },
+          {
+            "ncbi_taxid": 188338,
+            "scientific_name": "Coracias garrulus",
+            "class": "Aves",
+            "true_log10": 0.9638,
+            "pred_log10": 1.2611000537872314,
+            "pred_sd": 0.12809999287128448,
+            "n_genes": 505
+          },
+          {
+            "ncbi_taxid": 279965,
+            "scientific_name": "Antrostomus carolinensis",
+            "class": "Aves",
+            "true_log10": 1.1703,
+            "pred_log10": 1.2105000019073486,
+            "pred_sd": 0.1273999959230423,
+            "n_genes": 444
+          },
+          {
+            "ncbi_taxid": 371911,
+            "scientific_name": "Charadrius hiaticula",
+            "class": "Aves",
+            "true_log10": 1.3181,
+            "pred_log10": 1.3490999937057495,
+            "pred_sd": 0.11580000072717667,
+            "n_genes": 510
+          },
+          {
+            "ncbi_taxid": 495946,
+            "scientific_name": "Falco eleonorae",
+            "class": "Aves",
+            "true_log10": 1.0492,
+            "pred_log10": 1.2828999757766724,
+            "pred_sd": 0.12639999389648438,
+            "n_genes": 526
+          },
+          {
+            "ncbi_taxid": 3149524,
+            "scientific_name": "Caprimulgus ruficollis",
+            "class": "Aves",
+            "true_log10": 1.1206,
+            "pred_log10": 1.225100040435791,
+            "pred_sd": 0.12890000641345978,
+            "n_genes": 440
+          }
+        ]
+      },
+      "test": {
+        "kind": "test",
+        "step": 5040,
+        "epoch": 18.0,
+        "seconds": 9.1,
+        "pair_mse_z": 1.323238888381328,
+        "pair_mae_log10": 0.22667407998658756,
+        "species_mae_log10": 0.20339378466601504,
+        "baseline_species_mae_log10": 0.25416473057467565,
+        "n_species": 18,
+        "n_pairs": 9269,
+        "species_spearman": 0.3498452012383901,
+        "species_pearson": 0.38621231233776976,
+        "species": [
+          {
+            "ncbi_taxid": 8928,
+            "scientific_name": "Ciconia ciconia",
+            "class": "Aves",
+            "true_log10": 1.5911,
+            "pred_log10": 1.351699948310852,
+            "pred_sd": 0.11320000141859055,
+            "n_genes": 542
+          },
+          {
+            "ncbi_taxid": 8957,
+            "scientific_name": "Astur gentilis",
+            "class": "Aves",
+            "true_log10": 1.3424,
+            "pred_log10": 1.3336999416351318,
+            "pred_sd": 0.12110000103712082,
+            "n_genes": 536
+          },
+          {
+            "ncbi_taxid": 33586,
+            "scientific_name": "Mycteria ibis",
+            "class": "Aves",
+            "true_log10": 1.281,
+            "pred_log10": 1.19350004196167,
+            "pred_sd": 0.12870000302791595,
+            "n_genes": 306
+          },
+          {
+            "ncbi_taxid": 33587,
+            "scientific_name": "Mycteria americana",
+            "class": "Aves",
+            "true_log10": 1.4314,
+            "pred_log10": 1.3624999523162842,
+            "pred_sd": 0.10379999876022339,
+            "n_genes": 536
+          },
+          {
+            "ncbi_taxid": 33610,
+            "scientific_name": "Gypaetus barbatus",
+            "class": "Aves",
+            "true_log10": 1.6021,
+            "pred_log10": 1.3423999547958374,
+            "pred_sd": 0.10580000281333923,
+            "n_genes": 537
+          },
+          {
+            "ncbi_taxid": 36241,
+            "scientific_name": "Ciconia nigra",
+            "class": "Aves",
+            "true_log10": 1.4955,
+            "pred_log10": 1.316100001335144,
+            "pred_sd": 0.12120000272989273,
+            "n_genes": 504
+          },
+          {
+            "ncbi_taxid": 36247,
+            "scientific_name": "Gyps fulvus",
+            "class": "Aves",
+            "true_log10": 1.617,
+            "pred_log10": 1.3148000240325928,
+            "pred_sd": 0.125900000333786,
+            "n_genes": 524
+          },
+          {
+            "ncbi_taxid": 43466,
+            "scientific_name": "Circus cyaneus",
+            "class": "Aves",
+            "true_log10": 1.233,
+            "pred_log10": 1.3341000080108643,
+            "pred_sd": 0.11699999868869781,
+            "n_genes": 543
+          },
+          {
+            "ncbi_taxid": 43518,
+            "scientific_name": "Milvus milvus",
+            "class": "Aves",
+            "true_log10": 1.5798,
+            "pred_log10": 1.3008999824523926,
+            "pred_sd": 0.11959999799728394,
+            "n_genes": 510
+          },
+          {
+            "ncbi_taxid": 52775,
+            "scientific_name": "Ciconia boyciana",
+            "class": "Aves",
+            "true_log10": 1.6821,
+            "pred_log10": 1.3489999771118164,
+            "pred_sd": 0.11249999701976776,
+            "n_genes": 543
+          },
+          {
+            "ncbi_taxid": 52776,
+            "scientific_name": "Ciconia episcopus",
+            "class": "Aves",
+            "true_log10": 1.5051,
+            "pred_log10": 1.343500018119812,
+            "pred_sd": 0.11590000241994858,
+            "n_genes": 520
+          },
+          {
+            "ncbi_taxid": 52777,
+            "scientific_name": "Ciconia maguari",
+            "class": "Aves",
+            "true_log10": 1.3096,
+            "pred_log10": 1.3508000373840332,
+            "pred_sd": 0.11420000344514847,
+            "n_genes": 528
+          },
+          {
+            "ncbi_taxid": 52792,
+            "scientific_name": "Luscinia svecica",
+            "class": "Aves",
+            "true_log10": 1.0569,
+            "pred_log10": 1.0615999698638916,
+            "pred_sd": 0.07919999957084656,
+            "n_genes": 524
+          },
+          {
+            "ncbi_taxid": 202280,
+            "scientific_name": "Harpia harpyja",
+            "class": "Aves",
+            "true_log10": 1.2253,
+            "pred_log10": 1.3415000438690186,
+            "pred_sd": 0.10869999974966049,
+            "n_genes": 535
+          },
+          {
+            "ncbi_taxid": 252785,
+            "scientific_name": "Hieraaetus morphnoides",
+            "class": "Aves",
+            "true_log10": 1.5877,
+            "pred_log10": 1.3080999851226807,
+            "pred_sd": 0.12809999287128448,
+            "n_genes": 514
+          },
+          {
+            "ncbi_taxid": 387829,
+            "scientific_name": "Elanus axillaris",
+            "class": "Aves",
+            "true_log10": 0.5441,
+            "pred_log10": 1.2888000011444092,
+            "pred_sd": 0.1315000057220459,
+            "n_genes": 520
+          },
+          {
+            "ncbi_taxid": 1293958,
+            "scientific_name": "Muscicapa striata",
+            "class": "Aves",
+            "true_log10": 1.0719,
+            "pred_log10": 1.0683000087738037,
+            "pred_sd": 0.08699999749660492,
+            "n_genes": 531
+          },
+          {
+            "ncbi_taxid": 3150064,
+            "scientific_name": "Leptoptilos crumenifer",
+            "class": "Aves",
+            "true_log10": 1.6503,
+            "pred_log10": 1.1996999979019165,
+            "pred_sd": 0.14110000431537628,
+            "n_genes": 516
+          }
+        ]
+      }
+    },
+    "Random chunks": {
+      "val": {
+        "kind": "val",
+        "step": 36000,
+        "epoch": 18.0,
+        "seconds": 48.9,
+        "pair_mse_z": 1.2201165181394127,
+        "pair_mae_log10": 0.23344676814310464,
+        "species_mae_log10": 0.19925407523789557,
+        "baseline_species_mae_log10": 0.1578624740547213,
+        "n_species": 16,
+        "n_pairs": 16000,
+        "species_spearman": 0.3941176470588235,
+        "species_pearson": 0.23345859235730837,
+        "species": [
+          {
+            "ncbi_taxid": 36245,
+            "scientific_name": "Alcedo atthis",
+            "class": "Aves",
+            "true_log10": 1.3222,
+            "pred_log10": 1.1617000102996826,
+            "pred_sd": 0.12290000170469284,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 54383,
+            "scientific_name": "Eurypyga helias",
+            "class": "Aves",
+            "true_log10": 1.1761,
+            "pred_log10": 1.3866000175476074,
+            "pred_sd": 0.16539999842643738,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 54496,
+            "scientific_name": "Rallus aquaticus",
+            "class": "Aves",
+            "true_log10": 0.9494,
+            "pred_log10": 1.2226999998092651,
+            "pred_sd": 0.17579999566078186,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 56292,
+            "scientific_name": "Coracias caudatus",
+            "class": "Aves",
+            "true_log10": 1.1367,
+            "pred_log10": 1.3166999816894531,
+            "pred_sd": 0.16899999976158142,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 56349,
+            "scientific_name": "Falco femoralis",
+            "class": "Aves",
+            "true_log10": 1.0792,
+            "pred_log10": 1.3623000383377075,
+            "pred_sd": 0.16410000622272491,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 57426,
+            "scientific_name": "Momotus momota",
+            "class": "Aves",
+            "true_log10": 1.3075,
+            "pred_log10": 1.340499997138977,
+            "pred_sd": 0.16930000483989716,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 100859,
+            "scientific_name": "Vanellus vanellus",
+            "class": "Aves",
+            "true_log10": 1.3892,
+            "pred_log10": 1.413100004196167,
+            "pred_sd": 0.14900000393390656,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 111811,
+            "scientific_name": "Caprimulgus europaeus",
+            "class": "Aves",
+            "true_log10": 1.0755,
+            "pred_log10": 1.2518999576568604,
+            "pred_sd": 0.1500999927520752,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 120794,
+            "scientific_name": "Falco rusticolus",
+            "class": "Aves",
+            "true_log10": 1.1303,
+            "pred_log10": 1.3971999883651733,
+            "pred_sd": 0.15479999780654907,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 148593,
+            "scientific_name": "Falco cenchroides",
+            "class": "Aves",
+            "true_log10": 0.8451,
+            "pred_log10": 1.3743000030517578,
+            "pred_sd": 0.15970000624656677,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 171273,
+            "scientific_name": "Pluvialis squatarola",
+            "class": "Aves",
+            "true_log10": 1.4082,
+            "pred_log10": 1.4258999824523926,
+            "pred_sd": 0.1354999989271164,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 188338,
+            "scientific_name": "Coracias garrulus",
+            "class": "Aves",
+            "true_log10": 0.9638,
+            "pred_log10": 1.302899956703186,
+            "pred_sd": 0.16599999368190765,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 279965,
+            "scientific_name": "Antrostomus carolinensis",
+            "class": "Aves",
+            "true_log10": 1.1703,
+            "pred_log10": 1.267300009727478,
+            "pred_sd": 0.16089999675750732,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 371911,
+            "scientific_name": "Charadrius hiaticula",
+            "class": "Aves",
+            "true_log10": 1.3181,
+            "pred_log10": 1.4249999523162842,
+            "pred_sd": 0.14229999482631683,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 495946,
+            "scientific_name": "Falco eleonorae",
+            "class": "Aves",
+            "true_log10": 1.0492,
+            "pred_log10": 1.385699987411499,
+            "pred_sd": 0.1543000042438507,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 3149524,
+            "scientific_name": "Caprimulgus ruficollis",
+            "class": "Aves",
+            "true_log10": 1.1206,
+            "pred_log10": 1.2746000289916992,
+            "pred_sd": 0.15710000693798065,
+            "n_chunks": 1000
+          }
+        ]
+      },
+      "test": {
+        "kind": "test",
+        "step": 36000,
+        "epoch": 18.0,
+        "seconds": 55.0,
+        "pair_mse_z": 1.3870889752601367,
+        "pair_mae_log10": 0.21955564029469832,
+        "species_mae_log10": 0.18780209840443732,
+        "baseline_species_mae_log10": 0.25416473057467565,
+        "n_species": 18,
+        "n_pairs": 18000,
+        "species_spearman": 0.3415892672858617,
+        "species_pearson": 0.2991908255698916,
+        "species": [
+          {
+            "ncbi_taxid": 8928,
+            "scientific_name": "Ciconia ciconia",
+            "class": "Aves",
+            "true_log10": 1.5911,
+            "pred_log10": 1.4218000173568726,
+            "pred_sd": 0.1444000005722046,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 8957,
+            "scientific_name": "Astur gentilis",
+            "class": "Aves",
+            "true_log10": 1.3424,
+            "pred_log10": 1.4081000089645386,
+            "pred_sd": 0.1598999947309494,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 33586,
+            "scientific_name": "Mycteria ibis",
+            "class": "Aves",
+            "true_log10": 1.281,
+            "pred_log10": 1.3574999570846558,
+            "pred_sd": 0.18160000443458557,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 33587,
+            "scientific_name": "Mycteria americana",
+            "class": "Aves",
+            "true_log10": 1.4314,
+            "pred_log10": 1.4430999755859375,
+            "pred_sd": 0.13899999856948853,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 33610,
+            "scientific_name": "Gypaetus barbatus",
+            "class": "Aves",
+            "true_log10": 1.6021,
+            "pred_log10": 1.4292999505996704,
+            "pred_sd": 0.1429000049829483,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 36241,
+            "scientific_name": "Ciconia nigra",
+            "class": "Aves",
+            "true_log10": 1.4955,
+            "pred_log10": 1.4144999980926514,
+            "pred_sd": 0.1476999968290329,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 36247,
+            "scientific_name": "Gyps fulvus",
+            "class": "Aves",
+            "true_log10": 1.617,
+            "pred_log10": 1.4163000583648682,
+            "pred_sd": 0.13899999856948853,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 43466,
+            "scientific_name": "Circus cyaneus",
+            "class": "Aves",
+            "true_log10": 1.233,
+            "pred_log10": 1.4179999828338623,
+            "pred_sd": 0.1500999927520752,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 43518,
+            "scientific_name": "Milvus milvus",
+            "class": "Aves",
+            "true_log10": 1.5798,
+            "pred_log10": 1.4127000570297241,
+            "pred_sd": 0.1542000025510788,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 52775,
+            "scientific_name": "Ciconia boyciana",
+            "class": "Aves",
+            "true_log10": 1.6821,
+            "pred_log10": 1.4291000366210938,
+            "pred_sd": 0.14339999854564667,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 52776,
+            "scientific_name": "Ciconia episcopus",
+            "class": "Aves",
+            "true_log10": 1.5051,
+            "pred_log10": 1.4088000059127808,
+            "pred_sd": 0.14720000326633453,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 52777,
+            "scientific_name": "Ciconia maguari",
+            "class": "Aves",
+            "true_log10": 1.3096,
+            "pred_log10": 1.4326000213623047,
+            "pred_sd": 0.14030000567436218,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 52792,
+            "scientific_name": "Luscinia svecica",
+            "class": "Aves",
+            "true_log10": 1.0569,
+            "pred_log10": 1.0825999975204468,
+            "pred_sd": 0.10209999978542328,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 202280,
+            "scientific_name": "Harpia harpyja",
+            "class": "Aves",
+            "true_log10": 1.2253,
+            "pred_log10": 1.4277000427246094,
+            "pred_sd": 0.14419999718666077,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 252785,
+            "scientific_name": "Hieraaetus morphnoides",
+            "class": "Aves",
+            "true_log10": 1.5877,
+            "pred_log10": 1.4120999574661255,
+            "pred_sd": 0.1428000032901764,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 387829,
+            "scientific_name": "Elanus axillaris",
+            "class": "Aves",
+            "true_log10": 0.5441,
+            "pred_log10": 1.3734999895095825,
+            "pred_sd": 0.16169999539852142,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 1293958,
+            "scientific_name": "Muscicapa striata",
+            "class": "Aves",
+            "true_log10": 1.0719,
+            "pred_log10": 1.108299970626831,
+            "pred_sd": 0.11500000208616257,
+            "n_chunks": 1000
+          },
+          {
+            "ncbi_taxid": 3150064,
+            "scientific_name": "Leptoptilos crumenifer",
+            "class": "Aves",
+            "true_log10": 1.6503,
+            "pred_log10": 1.1416000127792358,
+            "pred_sd": 0.15800000727176666,
+            "n_chunks": 1000
+          }
+        ]
+      }
+    }
+  },
+  "best_validation": {
+    "CDS": {
+      "step": 3640,
+      "epoch": 13.0,
+      "species_mae_log10": 0.13857237642901804,
+      "species_spearman": 0.4147058823529412
+    },
+    "Random chunks": {
+      "step": 12000,
+      "epoch": 6.0,
+      "species_mae_log10": 0.16488019567365167,
+      "species_spearman": 0.3941176470588235
+    }
+  },
+  "training": {
+    "CDS": {
+      "steps": 5040,
+      "minutes": 25.458695948123932
+    },
+    "Random chunks": {
+      "steps": 36000,
+      "minutes": 172.67077526251475
+    }
+  },
+  "runtime": {
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "torch": "2.12.0+cu130",
+    "transformers": "5.18.0",
+    "cuda": "13.0",
+    "device": "cuda"
+  },
+  "historical_software_match": "unverified",
+  "limitations": [
+    "Historical model/tokenizer revisions, software environment and genome bytes were not pinned by the CDS run; assembly accessions are matched.",
+    "1000 chunks per genome differs from variable CDS counts and lengths; example weighting and observed tokens differ."
+  ]
+}
