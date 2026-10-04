@@ -123,6 +123,48 @@ species centroids. That covers 18 seen, 30 new-species and 12 new-family species
 The gaps follow the retrieval results but are smaller, because the decoder adds its own errors on top. B's higher
 class score on new families (0.27 vs 0.19) is 4 images out of 48, which is within noise.
 
+### Real vs generated
+
+The generated images reliably get the scene and a rough body plan right, but not a recognisable species. In each row
+below, the 4 images left of the gap are generated from the genome. The 2 on the right are real held-out photos.
+All examples are from the main run.
+
+**What works: habitat, body plan, sometimes the family.**
+
+![Examples where generated images match real photos](control-b-shuffle-tokens/examples_work.jpg)
+
+- **Common dolphin and blue whale** (seen and new species): open grey sea with a fin or a dolphin's back.
+- **Bark beetle**: close-ups of tree bark, matching the real photos of beetle damage on trunks.
+- **Nile grass rat** (new species): small grey furry rodents.
+- **Golden jackal** (new species): orange fox- or cat-like animals.
+- **Horse** (new species): zebras, which are in the same family.
+
+**What fails: species-level features, and families the model never saw.**
+
+![Examples where generated images miss the species](control-b-shuffle-tokens/examples_fail.jpg)
+
+- **Dromedary camel and red deer:** generic brown hoofed animals in dry scrub, with no humps and no antlers.
+- **Black rhino** (new species): drawn as elephants. The size, grey colour and savanna setting are right, but the
+  animal is wrong.
+- **Eastern oyster and turmeric** (new families): only the setting comes through, as sand with round blobs and grass.
+  The organism itself is missing.
+
+**Artifacts from the image generator, not the DNA.** These repeat in the same image slot across species, so each slot
+probably reuses one random seed:
+- The first image in almost every row has a dark strip down its left edge.
+- The 4th image often shows a person, such as the child in the camel and deer rows above.
+- Some images carry watermark-like text.
+- A few, such as the stick insect and turmeric, come out as black line drawings.
+
+**The real photos are noisy too.** Many are distant camera-trap shots. One "Asian elephant" photo shows only leaves,
+and both "horn shark" photos show egg cases on a beach. That limits how closely any generated image can match.
+
+**Main run vs control B.** Compositions are nearly identical, because the two runs share the decoder and the seeds.
+B drifts off more often. For the common cuckoo, the main run (top) keeps the bird in tree branches. B (bottom)
+produces flocks of seabirds over water. This fits B's lower family-level scores.
+
+![Common cuckoo: main run (top) vs control B (bottom)](control-b-shuffle-tokens/examples_main_vs_b.jpg)
+
 ### Contact sheets
 
 Each row is one species. It shows 4 images generated from the genome, then 2 real held-out photos. The two runs look

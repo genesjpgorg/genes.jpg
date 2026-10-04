@@ -150,8 +150,46 @@ def contact_sheets(width=900):
             im.save(OUT / f"{key}_{split}.jpg", quality=80, optimize=True)
 
 
+def example_rows(width=900, row_h=220, split_x=800, gap=6):
+    """Stack chosen contact-sheet rows (4 generated | 2 real) with a gap between generated and real photos."""
+    picks = {
+        "examples_work.jpg": [
+            ("main", "seen", 5),
+            ("main", "new_species_known_family", 1),
+            ("main", "seen", 6),
+            ("main", "new_species_known_family", 0),
+            ("main", "new_species_known_family", 3),
+            ("main", "new_species_known_family", 6),
+        ],
+        "examples_fail.jpg": [
+            ("main", "seen", 1),
+            ("main", "seen", 2),
+            ("main", "new_species_known_family", 4),
+            ("main", "new_family_known_class", 2),
+            ("main", "new_family_known_class", 3),
+        ],
+        "examples_main_vs_b.jpg": [("main", "seen", 4), ("B", "seen", 4)],
+    }
+    runs = {key: run for key, run, _, _ in RUNSET}
+    for fname, rows in picks.items():
+        crops = []
+        for key, split, i in rows:
+            sheet = Image.open(runs[key] / "samples" / f"contact_sheet_{split}.jpg").convert("RGB")
+            row = sheet.crop((0, i * row_h, sheet.width, (i + 1) * row_h))
+            out = Image.new("RGB", (row.width + gap, row_h), "white")
+            out.paste(row.crop((0, 0, split_x, row_h)), (0, 0))
+            out.paste(row.crop((split_x, 0, row.width, row_h)), (split_x + gap, 0))
+            crops.append(out)
+        im = Image.new("RGB", (crops[0].width, row_h * len(crops)), "white")
+        for k, c in enumerate(crops):
+            im.paste(c, (0, k * row_h))
+        im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
+        im.save(OUT / fname, quality=85, optimize=True)
+
+
 if __name__ == "__main__":
     align_curves()
     prior_curves()
     evaluation()
     contact_sheets()
+    example_rows()
