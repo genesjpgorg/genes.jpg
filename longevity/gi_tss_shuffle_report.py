@@ -208,7 +208,7 @@ def figures(directory, summary, species, replicate_rhos):
         ylim=(-1, 1),
         title="Correlation before and after TSS block shuffling",
     )
-    ax.legend(fontsize=9)
+    fig.legend(loc="outside lower center", ncols=3, fontsize=9)
     for ext in ["png", "svg", "pdf"]:
         fig.savefig(directory / f"correlations.{ext}", dpi=180)
     plt.close(fig)
@@ -248,7 +248,8 @@ def run(args):
     species.to_csv(directory / "species_comparison.csv", index=False)
     replicates.to_csv(directory / "replicate_correlations.csv", index=False)
     # Compact public table contains all numeric predictions, no DNA or API credentials.
-    pd.concat(raw, ignore_index=True)[
+    predictions = pd.concat(raw, ignore_index=True)
+    predictions[
         [
             "human_gene_id",
             "ensembl_species",
@@ -261,6 +262,49 @@ def run(args):
             "scored_window_end",
         ]
     ].to_csv(directory / "predictions.csv", index=False)
+    qc = pd.read_csv(out / "sequence_qc.csv")
+    native_width = predictions[predictions.condition == "native"].copy()
+    native_width["width"] = native_width.scored_window_end - native_width.scored_window_start
+    native_width = native_width.set_index(["human_gene_id", "ensembl_species"]).width
+    shuffle_width = predictions[predictions.condition == "shuffled"].copy()
+    shuffle_width["width"] = shuffle_width.scored_window_end - shuffle_width.scored_window_start
+    shuffle_width = shuffle_width.set_index(["human_gene_id", "ensembl_species"]).width
+    width_change = shuffle_width.sub(native_width)
+    tss, flank = protocol["tss_index"], protocol["shuffle_flank_bp"]
+    inference_qc = {
+        "analyzed_predictions": len(predictions),
+        "analyzed_native_controls": int((predictions.condition == "native").sum()),
+        "analyzed_shuffled_predictions": int((predictions.condition == "shuffled").sum()),
+        "native_retest_max_abs_difference": float(summary.native_retest_max_abs_difference.max()),
+        "all_predictions_finite": bool(np.isfinite(predictions.expression_log_tpm).all()),
+        "all_scored_windows_include_perturbed_region": bool(
+            (
+                (predictions.scored_window_start <= tss - flank)
+                & (predictions.scored_window_end >= tss + flank)
+            ).all()
+        ),
+        "scored_width_change_shuffle_minus_native_bp": {
+            "min": int(width_change.min()),
+            "mean": float(width_change.mean()),
+            "max": int(width_change.max()),
+        },
+        "all_prepared_shuffles_preserve_exterior": bool(qc.exterior_unchanged.all()),
+        "all_prepared_shuffles_preserve_composition": bool(qc.composition_preserved.all()),
+        "prepared_shuffle_changed_bases_min": int(qc.changed_bases.min()),
+        "prepared_shuffle_changed_bases_max": int(qc.changed_bases.max()),
+    }
+    if len(complete) == len(candidates):
+        requests = [json.loads(line) for line in (out / "requests.jsonl").read_text().splitlines()]
+        inference_qc["api_request_status_counts"] = (
+            pd.Series([r["status"] for r in requests]).value_counts().to_dict()
+        )
+        inference_qc["api_logged_requests"] = len(requests)
+        inference_qc["api_requests_with_retries"] = sum(
+            len(r.get("attempts", [])) > 1 for r in requests
+        )
+        inference_qc["run_progress"] = json.loads((out / "progress.json").read_text())
+    write_json(directory / "inference_qc.json", inference_qc)
+    shutil.copy2(out / "provenance.json", directory / "preparation_provenance.json")
     figures(directory, summary, species, replicates)
     lines = [
         "# TSS block shuffle validation",
@@ -288,8 +332,10 @@ def run(args):
         "",
         "A drop in expression alone does not establish loss of longevity association: correlations and species ordering are reported separately. Persistence after this local shuffle can reflect preserved sequence composition, short motifs, unperturbed distal sequence or model behavior. A loss supports dependence on the perturbed sequence organization but does not establish a causal effect on organismal lifespan. Synthetic shuffled promoters can also lie outside the model's training distribution.",
         "",
+        f"All scored windows include the perturbed region: **{inference_qc['all_scored_windows_include_perturbed_region']}**. The API's scored-window bounds can vary with sequence despite fixed input length and TSS index. Here the shuffled-minus-native scored width ranges from {int(width_change.min()):+,} to {int(width_change.max()):+,} bp (mean {width_change.mean():+.1f} bp). This is an additional model-context change to consider when interpreting the perturbation. The largest absolute fresh-native versus original prediction difference is **{summary.native_retest_max_abs_difference.max():g}**.",
+        "",
         "- [Per-gene statistics](gene_summary.csv), [species comparisons](species_comparison.csv), [each replicate's correlation](replicate_correlations.csv).",
-        "- [All numeric predictions and hashes](predictions.csv), [frozen experimental protocol](protocol.json), [analysis provenance](analysis_provenance.json).",
+        "- [All numeric predictions and hashes](predictions.csv), [frozen experimental protocol](protocol.json), [inference QC](inference_qc.json), [preparation provenance](preparation_provenance.json), [analysis provenance](analysis_provenance.json).",
         "",
     ]
     (directory / "README.md").write_text("\n".join(lines))

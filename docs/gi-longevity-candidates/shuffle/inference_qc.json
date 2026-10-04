@@ -1,0 +1,35 @@
+{
+  "all_predictions_finite": true,
+  "all_prepared_shuffles_preserve_composition": true,
+  "all_prepared_shuffles_preserve_exterior": true,
+  "all_scored_windows_include_perturbed_region": true,
+  "analyzed_native_controls": 187,
+  "analyzed_predictions": 2057,
+  "analyzed_shuffled_predictions": 1870,
+  "api_logged_requests": 2057,
+  "api_request_status_counts": {
+    "ok": 2057
+  },
+  "api_requests_with_retries": 0,
+  "native_retest_max_abs_difference": 0.0,
+  "prepared_shuffle_changed_bases_max": 6226,
+  "prepared_shuffle_changed_bases_min": 5819,
+  "run_progress": {
+    "api_cached": 0,
+    "api_new": 2057,
+    "elapsed_seconds": 1376.6865185460047,
+    "genes_done": 6,
+    "genes_total": 6,
+    "last_gene": "ATG14",
+    "requests_done": 2057,
+    "started_at_utc": "2026-10-04T11:58:33Z",
+    "status": "completed",
+    "total_requests": 2057,
+    "updated_at_utc": "2026-10-04T12:21:30Z"
+  },
+  "scored_width_change_shuffle_minus_native_bp": {
+    "max": 122,
+    "mean": -183.27860962566845,
+    "min": -889
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "bootstrap_replicates": 20000,
+  "code_sha256": "320d34a3e65046c3603c5728367d84dab234510f145947fd46d20e5d0645dd85",
+  "complete": true,
+  "input_genes": [
+    {
+      "gene": "ABHD4",
+      "sha256": "6be155ae40e271327b1cc1b727ad72ce1446ee050cfa85c5d0388078863e2a33"
+    },
+    {
+      "gene": "TDO2",
+      "sha256": "cee8ffdf21be4109a6f248cce670725526686e1a9be07d1d9d7909d34701097c"
+    },
+    {
+      "gene": "CCDC85A",
+      "sha256": "fa6eb2ae60cf1ae5cb9ef80e0b915ceda511c1e5eaf94670dfe42f402560a603"
+    },
+    {
+      "gene": "LGI1",
+      "sha256": "f15ec60b8574374b1b873eb5c03535fdbcedb00116bfe211230dc0f881761930"
+    },
+    {
+      "gene": "ACSS1",
+      "sha256": "da1381f911dfd58fe36ac72cc884a7291a331365a51a5a122babaf5f4f32ddcb"
+    },
+    {
+      "gene": "ATG14",
+      "sha256": "293cdda6b3f8d22721f36a2241d67c9ba8db04b4aea374b2c830b2b4f0fbbd7f"
+    }
+  ],
+  "permutations": 999999,
+  "protocol_sha256": "38fac9f754b441d9be13f8c6ecfd84ba34c29d398d80a35f1b929dfe5a612e75"
+}

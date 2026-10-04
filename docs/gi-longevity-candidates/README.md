@@ -20,3 +20,9 @@ uv run python scripts/plot_gi_candidates.py
 ```
 
 An [8-bp block-shuffle experiment](shuffle-design.md) tests whether these associations persist after rearranging sequence near the TSS while retaining block composition. The candidate set and plotted baseline were fixed before that experiment.
+
+The [completed shuffle experiment](shuffle/README.md) used ten independent shuffles per species within ±4,096 bp of the TSS. All six associations weakened, and none of the shuffled-mean correlations remained significant after BH correction across the six candidates (q ≥ 0.223). All 187 fresh native controls exactly reproduced their original predictions. The 2,057 API requests completed successfully in 22.9 minutes without retries.
+
+![Lifespan correlations before and after shuffling](shuffle/correlations.png)
+
+This result supports dependence of the model's lifespan-associated predictions on local sequence organization. It does not establish that these genes cause longer lifespan: the perturbed promoters are artificial, and the API's scored-window bounds also change slightly with the shuffled sequence. [Full numeric results and limitations](shuffle/README.md).
