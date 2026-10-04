@@ -1,0 +1,34 @@
+{
+  "run_name": "longevity-agingatlas-all-genomic-10ep",
+  "checkpoint": "best.pt",
+  "shuffle_seed": 0,
+  "results": {
+    "val": {
+      "saved": {
+        "n_species": 335,
+        "n_inputs": 154745,
+        "mae_log10": 0.17624209116264758,
+        "pearson_log10": 0.7188883054883263,
+        "mae_years": 8.442432818910968,
+        "pearson_years": 0.43584181848043624,
+        "spearman": 0.6994078775483774
+      }
+    },
+    "test": {
+      "saved": {
+        "n_species": 294,
+        "n_inputs": 137063,
+        "mae_log10": 0.1807457765300245,
+        "pearson_log10": 0.6722520572478596,
+        "mae_years": 9.368050415661871,
+        "pearson_years": 0.5369164866254056,
+        "spearman": 0.6621030495118856
+      }
+    }
+  },
+  "reproduction": {},
+  "source_files_sha256": {
+    "predictions_val_full.parquet": "0ab18cc8996a6cc9af2b6501d36c0f8be20d2ebce6e9fad98f3759de9a67ae25",
+    "predictions_test.parquet": "4964d41016916e235a26ee21ec85ff24f2bcb478ca5194f25d007e17c9c42244"
+  }
+}
