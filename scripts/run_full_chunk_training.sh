@@ -17,7 +17,10 @@ while [[ ! -f "$job/prepare.exit" ]]; do sleep 30; done
  --out "$job/input-audit.json" > "$job/audit.log" 2>&1
 exec 9> /home/fishman/.cache/genesjpg-gpu.lock
 flock -x 9
-.venv-train/bin/python -m pip freeze > "$job/environment.txt"
+.venv-train/bin/python - <<'ENV' > "$job/environment.txt"
+from importlib.metadata import distributions
+print("\n".join(sorted(f"{d.metadata['Name']}=={d.version}" for d in distributions())))
+ENV
 git rev-parse HEAD > "$job/code-commit.txt"
 git diff --exit-code -- longevity scripts configs
 printf 'Starting full training\n'
