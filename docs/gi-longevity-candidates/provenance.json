@@ -1,0 +1,19 @@
+{
+  "source_snapshot": "data/datasets/gi-hepatocytes-ensembl116/analyses/broad/associations/20261004T104842Z",
+  "candidate_source": "data/datasets/gi-hepatocytes-ensembl116/analyses/broad/associations/20261004T104842Z/independent_species/20261004T113306Z/gene_associations.parquet",
+  "candidate_definition": "Six leading genes sorted by permutation Spearman p, asymptotic p, then Ensembl ID in the frozen 2001-gene analysis",
+  "model": "g0-expression-8192",
+  "description": "Homo sapiens primary hepatocytes, untreated, bulk RNA-seq.",
+  "selection_family": 3036,
+  "observations": 187,
+  "per_gene_species": {
+    "ABHD4": 30,
+    "TDO2": 35,
+    "CCDC85A": 30,
+    "LGI1": 32,
+    "ACSS1": 30,
+    "ATG14": 30
+  },
+  "source_results_sha256": "4363d6bf24e64d8139aa138257a88b240da5c1e3bdf42f99f23933d6b9d7981e",
+  "source_expression_sha256": "7785f125229343bc485406d3807d16e738c05b523f0c530a124703713afea047"
+}

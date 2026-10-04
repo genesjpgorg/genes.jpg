@@ -19,6 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+analysis = ["scipy>=1.14", "statsmodels>=0.14", "matplotlib>=3.8"]
 # DNA -> image model (genesjpg): `uv sync --extra model`
 model = [
     "torch",
