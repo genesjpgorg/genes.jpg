@@ -1,0 +1,85 @@
+{
+  "run_name": "longevity-agingatlas-all-genomic-10ep",
+  "checkpoint": "best.pt",
+  "shuffle_seed": 0,
+  "results": {
+    "val": {
+      "saved": {
+        "n_species": 335,
+        "n_inputs": 154745,
+        "mae_log10": 0.17624209116264758,
+        "pearson_log10": 0.7188883054883263,
+        "mae_years": 8.442432818910968,
+        "pearson_years": 0.43584181848043624,
+        "spearman": 0.6994078775483774
+      },
+      "intact": {
+        "n_species": 335,
+        "n_inputs": 154745,
+        "mae_log10": 0.17624210326150086,
+        "pearson_log10": 0.7188883055204213,
+        "mae_years": 8.442433547688953,
+        "pearson_years": 0.4358418553005954,
+        "spearman": 0.6994078775483774
+      },
+      "shuffled": {
+        "n_species": 335,
+        "n_inputs": 154745,
+        "mae_log10": 0.2127503894753544,
+        "pearson_log10": 0.5725169672093462,
+        "mae_years": 9.32343446816971,
+        "pearson_years": 0.3227406260580956,
+        "spearman": 0.5483649588841597
+      }
+    },
+    "test": {
+      "saved": {
+        "n_species": 294,
+        "n_inputs": 137063,
+        "mae_log10": 0.1807457765300245,
+        "pearson_log10": 0.6722520572478596,
+        "mae_years": 9.368050415661871,
+        "pearson_years": 0.5369164866254056,
+        "spearman": 0.6621030495118856
+      },
+      "intact": {
+        "n_species": 294,
+        "n_inputs": 137063,
+        "mae_log10": 0.1807457238184339,
+        "pearson_log10": 0.6722521849015385,
+        "mae_years": 9.368046834517498,
+        "pearson_years": 0.5369167122436133,
+        "spearman": 0.6621030495118856
+      },
+      "shuffled": {
+        "n_species": 294,
+        "n_inputs": 137063,
+        "mae_log10": 0.22483169107589748,
+        "pearson_log10": 0.45831535335181084,
+        "mae_years": 11.328096587641708,
+        "pearson_years": 0.2859604807264194,
+        "spearman": 0.41494301242241666
+      }
+    }
+  },
+  "reproduction": {
+    "val": {
+      "pair_mean_abs_log10": 6.664303242587266e-08,
+      "pair_max_abs_log10": 0.0012891292572021484,
+      "species_mae_log10_difference": 1.2098853280351207e-08
+    },
+    "test": {
+      "pair_mean_abs_log10": 9.2286029484967e-08,
+      "pair_max_abs_log10": 0.002578258514404297,
+      "species_mae_log10_difference": -5.271159059239139e-08
+    }
+  },
+  "source_files_sha256": {
+    "predictions_val_full.parquet": "0ab18cc8996a6cc9af2b6501d36c0f8be20d2ebce6e9fad98f3759de9a67ae25",
+    "predictions_test.parquet": "4964d41016916e235a26ee21ec85ff24f2bcb478ca5194f25d007e17c9c42244",
+    "best.pt": "eeb8a431043d7bddb55ca3de7d9fa7ecbf949aae6aebf3a1038f19201fa166b6",
+    "config.json": "a07266dad60ca3b3ecea27c96790ddc6b73d36381b8b4e9b137189f1551eb0f1",
+    "pairs_genomic.parquet": "3dbc0e8bc8ca1298bd5d22c848c3b02f07812f8b991584d1ad57953d7941ba72"
+  },
+  "checkpoint_step": 76000
+}
