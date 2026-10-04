@@ -119,6 +119,7 @@ def test_live_pipeline_semantics_with_fake_gi_and_cache(service):
     client, manager, fake = service
     config = client.get("/api/config").json()
     assert config["reference_ready"] and config["api_key_ready"]
+    assert all("reference_years" not in model for model in config["models"])
     assert client.get("/").status_code == 200
     job_id = upload_job(client)
     result = completed(client, job_id)
@@ -135,6 +136,23 @@ def test_live_pipeline_semantics_with_fake_gi_and_cache(service):
     assert repeat["cache_hits"] == 2 and repeat["api_requests"] == 0 and fake.calls == 2
     assert repeat["percent_change"] == result["percent_change"]
     assert (manager.state / "jobs" / job_id / "sequence_plan.json").is_file()
+    # Pre-update saved jobs must also omit absolute estimates in status and downloads.
+    old_result = dict(
+        result,
+        result_schema_version=1,
+        reference_predicted_years=30,
+        modified_predicted_years=31,
+        frozen_reference_predicted_years=30,
+    )
+    manager.update(job_id, result=old_result)
+    for exported in (
+        client.get(f"/api/jobs/{job_id}").json()["result"],
+        client.get(f"/api/jobs/{job_id}/result.json").json(),
+        client.post(f"/api/jobs/{job_id}/cancel").json()["result"],
+    ):
+        assert not any(key.endswith("_years") for key in exported)
+        assert exported["percent_change"] == result["percent_change"]
+        assert exported["result_schema_version"] == 2
 
 
 def test_no_variant_calls_are_exactly_reference_and_no_gi(service):
@@ -142,8 +160,8 @@ def test_no_variant_calls_are_exactly_reference_and_no_gi(service):
     result = completed(client, upload_job(client, "0/0"))
     assert fake.calls == 0
     assert result["percent_change"] == 0
-    assert result["reference_predicted_years"] == pytest.approx(32.52751641619777)
-    assert result["reference_predicted_years"] == result["modified_predicted_years"]
+    assert not any(key.endswith("_years") for key in result)
+    assert result["phase_percent_range"] == [0, 0]
 
 
 def test_local_origin_bad_input_and_unknown_ids(service):
@@ -219,7 +237,7 @@ def test_interrupted_job_restarts_from_cached_inference(service, monkeypatch):
     restarted = JobManager(manager.state, manager.reference, "unused", client=fake)
     with TestClient(create_app(restarted), base_url="http://localhost") as new_client:
         result = completed(new_client, job_id)
-        assert result["result_schema_version"] == 1
+        assert result["result_schema_version"] == 2
         assert len(result["sequence_plan"]) == 1
         assert fake.calls == calls_before
         assert result["cache_hits"] == 2

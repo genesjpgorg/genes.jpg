@@ -35,7 +35,7 @@ Then open `http://localhost:8787` on that computer. Do not change the server bin
 2. Select the sample when there is more than one, and confirm GRCh38/hg38. Declared GRCh37/hg19 inputs are rejected. No liftover is performed.
 3. Choose **Selected genes** (default) or **All genes**. The latter can require thousands of GI calls for a whole genome.
 4. Leave phase draws at 4, or choose 2 / 8. Click **Run analysis**.
-5. Bookmark the resulting `?job=...` URL. The app shows progress, the percentage change, reference and modified model estimates, and each affected gene's expression and contribution.
+5. Bookmark the resulting `?job=...` URL. The app shows progress, the percentage change versus reference, and each affected gene's expression and contribution.
 6. Download the full result JSON or the gene-effects CSV. A synthetic ABHD4 example is available on the page; it does not represent a real individual.
 
 Uploads and assembled sequences stay in the local runtime state directory. Relevant native and modified DNA windows are sent to the GI API. The server reads the key; the browser never receives it. Uploaded data and GI caches are retained until you remove them locally. They are outside the Git checkout and are not committed.
@@ -44,12 +44,12 @@ Uploads and assembled sequences stay in the local runtime state directory. Relev
 
 The app reuses the exported weights and preprocessing parameters without refitting:
 
-| Model ID | Fitted genes | Available human windows | Frozen reference prediction |
-| --- | ---: | ---: | ---: |
-| `fdr_genes_ridge` | 57 | 56 | 32.52751641619777 years |
-| `all_genes_ridge` | 3,036 | 3,034 | 46.55558228872374 years |
+| Model ID | Fitted genes | Available human windows |
+| --- | ---: | ---: |
+| `fdr_genes_ridge` | 57 | 56 |
+| `all_genes_ridge` | 3,036 | 3,034 |
 
-The human-missing feature `ENSG00000170464` is median-imputed in both models; `ENSG00000266200` is also imputed in the all-gene model. Variants in genes without a reference window cannot affect this app's prediction. The human maximum-lifespan record of 122.5 years is **not** the denominator of the percentage calculation.
+The human-missing feature `ENSG00000170464` is median-imputed in both models; `ENSG00000266200` is also imputed in the all-gene model. Variants in genes without a reference window cannot affect this app's prediction. The denominator is the model’s matched reference prediction. The interface, API and downloads report percentage changes without absolute age or lifespan estimates.
 
 See the [frozen model manual](../gi-longevity-final/USAGE.md), [methodology](../gi-longevity-final/METHODOLOGY.md), [coefficients](../gi-lifespan-predictor/coefficients.csv), and [reference provenance](../gi-longevity-final/reference_human_provenance.json).
 
@@ -85,16 +85,15 @@ No sample name, variant label, species label change, or other context change is 
 
 For each affected gene, the app also infers its **native reference DNA**, using the same fixed GI configuration and service cache as the modified DNA. Unaffected genes retain their archived reference expression. This yields a matched reference vector and a modified vector. Native requests may be served from the content-addressed service cache; timestamps/raw responses are retained locally. The live GI service can change over time, and its model ID alone cannot guarantee permanent numerical reproducibility; retain the responses for a reproducible report.
 
-Let `x_g` be expression in `log(1+TPM)`, `mu_g` and `s_g` the training mean and scale, `beta_g` the standardized coefficient, and `b` the saved intercept:
+Let `x_g` be expression in `log(1+TPM)`, `s_g` the training scale, and `beta_g` the standardized coefficient. The intercept and training means cancel in the comparison:
 
 ```text
-log_years = b + sum_g beta_g * (x_g - mu_g) / s_g
-years = exp(log_years)
-percent_change = 100 * expm1(log_years_modified - log_years_reference)
 gene_log_contribution = beta_g * (x_modified_g - x_reference_g) / s_g
+log_ratio = sum_g gene_log_contribution
+percent_change = 100 * expm1(log_ratio)
 ```
 
-Missing human features use the saved training median. Contributions sum in **log-lifespan units**, not percentage units. The UI displays the matched reference estimate and records the frozen reference estimate separately, making any reference drift visible. The min/max result over phase draws describes sensitivity to phase assignments; it is **not a confidence interval**. With no window-changing calls, the answer is exactly 0%, the frozen estimate is retained, and no GI request is made.
+Missing human features use the saved training median. Contributions sum in **log-lifespan units**, not percentage units. Only the percentage change versus the matched reference is reported. Absolute estimates are omitted from the UI, configuration API, job API, and downloadable JSON, including when reopening older saved jobs. The min/max result over phase draws describes sensitivity to phase assignments; it is **not a confidence interval**. With no window-changing calls, the answer is exactly 0% and no GI request is made.
 
 ## Install and start elsewhere
 
@@ -177,7 +176,7 @@ Runtime artifact inventory (under `GI_WEB_STATE`):
 | `uploads/{id}/input.vcf` | Original uploaded bytes; may be gzip despite the stored suffix |
 | `uploads/{id}/metadata.json` | Original filename, samples, build evidence, byte count and input SHA-256 |
 | `jobs/{id}/status.json` | Job options, progress, counters, timestamps, and completed result |
-| `jobs/{id}/result.json` | Report source: percentage, both estimates, frozen estimate, model/context, phase range, per-gene effects, input/model hashes, assumptions |
+| `jobs/{id}/result.json` | Report source: percentage change versus reference, model/context, phase range, per-gene effects, input/model hashes, assumptions |
 | `jobs/{id}/sequence_plan.json` | Each affected gene's native request hash and two haplotype hashes per phase draw; also embedded in result JSON |
 | `jobs/{id}/sequences.sqlite` | Deduplicated zlib-compressed DNA keyed by exact GI request hash; private genomic data |
 | `jobs/{id}/expressions.json` | Request hash → validated GI `log(1+TPM)` expression |
@@ -185,9 +184,9 @@ Runtime artifact inventory (under `GI_WEB_STATE`):
 | `GRCh38.provenance.json` | Preparation source hash and assembly/release |
 | `server.log` | Local service and HTTP progress log; API key is not logged |
 
-`result_schema_version` is 1. `api_requests` counts newly successful GI inferences, not retry HTTP attempts; `cache_hits` counts reused responses. `requests_total` counts unique sequence payloads. Gene-level `variant_records` counts retained records in the padded window; some padding records may not affect the cropped sequence. `genes_affected` counts genes whose final DNA differs in at least one sampled haplotype, whether or not GI predicts an expression difference. Filter counters apply to padded predictor windows; `outside_windows` counts discarded records elsewhere.
+`result_schema_version` is 2. The web reporting layer omits the three absolute `*_predicted_years` fields from schema 1; its percentage calculation is unchanged. Older files retained privately in runtime storage are filtered to schema 2 when served. `api_requests` counts newly successful GI inferences, not retry HTTP attempts; `cache_hits` counts reused responses. `requests_total` counts unique sequence payloads. Gene-level `variant_records` counts retained records in the padded window; some padding records may not affect the cropped sequence. `genes_affected` counts genes whose final DNA differs in at least one sampled haplotype, whether or not GI predicts an expression difference. Filter counters apply to padded predictor windows; `outside_windows` counts discarded records elsewhere.
 
-For reports, take numeric values directly from JSON/CSV. Identify the model, human assembly, fixed context, phase draws, reference-control policy, and experimental comparative-model interpretation. Do not substitute the observed 122.5-year human record into the denominator or describe phase ranges as uncertainty intervals.
+For reports, take numeric values directly from JSON/CSV. Identify the model, human assembly, fixed context, phase draws, reference-control policy, and experimental comparative-model interpretation. Do not substitute an observed human lifespan into the denominator or describe phase ranges as uncertainty intervals.
 
 Source files:
 
@@ -205,7 +204,7 @@ Run the relevant tests:
   tests/test_gi_vcf.py tests/test_gi_web.py -q
 ```
 
-Deployment was additionally checked in Chromium at desktop and 390-pixel mobile widths: upload, sample selection, live GI inference, restored job URL, CSV/JSON downloads, and no browser JavaScript errors. The synthetic homozygous ABHD4 example returned **32.5275164162 → 33.8764107373 model-years (+4.146933%)** with two live GI calls. This is a software/inference smoke test, not a biological validation of that variant.
+Deployment was additionally checked in Chromium at desktop and 390-pixel mobile widths: upload, sample selection, live GI inference, restored job URL, CSV/JSON downloads, and no browser JavaScript errors. The synthetic homozygous ABHD4 example returned **+4.146933% versus reference** with two live GI calls. This is a software/inference smoke test, not a biological validation of that variant.
 
 Committed smoke-test artifacts:
 
@@ -213,6 +212,6 @@ Committed smoke-test artifacts:
 | --- | --- |
 | [`synthetic_ABHD4.vcf`](synthetic_ABHD4.vcf) | Exact synthetic GRCh38 input; no personal sample data |
 | [`synthetic_result.json`](synthetic_result.json) | Selected-gene model: +4.146933%, including sequence request hashes and artifact checksums |
-| [`synthetic_result_all_genes.json`](synthetic_result_all_genes.json) | All-gene model: 46.5555822887 → 46.7249516144 model-years (+0.363800%); reused the same two GI sequence results |
+| [`synthetic_result_all_genes.json`](synthetic_result_all_genes.json) | All-gene model: +0.363800% versus reference; reused the same two GI sequence results |
 
 The final targeted suite passed **37 tests**, including cancellation without a partial prediction and automatic restart from cached inference. Formatting/lint checks passed for the added Python modules and tests. The existing Starlette test client emits a deprecation warning for its httpx transport; this does not affect the running server or test results.

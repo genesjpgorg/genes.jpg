@@ -1,8 +1,5 @@
 {
-  "reference_predicted_years": 32.52751641619777,
-  "modified_predicted_years": 33.87641073729786,
   "percent_change": 4.146933026919865,
-  "frozen_reference_predicted_years": 32.52751641619777,
   "log_lifespan_change": 0.04063253363210517,
   "phase_percent_range": [
     4.146933026919865,
@@ -26,7 +23,7 @@
   "median_imputed_gene_ids": [
     "ENSG00000170464"
   ],
-  "result_schema_version": 1,
+  "result_schema_version": 2,
   "job_id": "4cd1f28f-ca82-4cbd-b2ec-88bcf6fdeda1",
   "model": "fdr_genes_ridge",
   "sample": "SYNTHETIC_DEMO",

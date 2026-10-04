@@ -12,8 +12,6 @@ async function loadConfig() {
     ready = config.reference_ready && config.api_key_ready;
     $('readiness').textContent = ready ? 'Ready to analyze' : !config.reference_ready ? 'Reference unavailable' : 'API key unavailable';
     $('readiness').classList.toggle('ready', ready);
-    $('selected-reference').textContent = number(config.models[0].reference_years, 2) + ' years';
-    $('all-reference').textContent = number(config.models[1].reference_years, 2) + ' years';
     buttonState();
   } catch (e) { error('Cannot reach the local service. ' + e.message); }
 }
@@ -64,11 +62,10 @@ function renderResult(job) {
   const r = job.result;
   $('result').hidden = false; $('percent-change').textContent = signed(r.percent_change) + '%'; $('percent-change').classList.toggle('decrease', r.percent_change < 0);
   $('result-direction').textContent = r.percent_change === 0 ? 'No change relative to the model’s reference prediction.' : `${r.percent_change > 0 ? 'Increase' : 'Decrease'} relative to the matched reference prediction.`;
-  $('reference-years').textContent = number(r.reference_predicted_years,4) + ' years'; $('modified-years').textContent = number(r.modified_predicted_years,4) + ' years';
   $('affected-count').textContent = r.genes_affected; $('inference-count').textContent = r.requests_total; $('cache-count').textContent = r.cache_hits;
   $('csv-download').href = `/api/jobs/${job.id}/genes.csv`; $('json-download').href = `/api/jobs/${job.id}/result.json`;
   resultRows = r.genes; renderRows(); $('run-details').replaceChildren();
-  detail('Sample', r.sample); detail('Model', r.model === 'fdr_genes_ridge' ? 'Selected genes (57)' : 'All genes (3,036)'); detail('Assembly', 'GRCh38 · Ensembl 116'); detail('Frozen reference estimate', number(r.frozen_reference_predicted_years,6) + ' years'); detail('Phase draws', r.phase_draws); detail('Phase sensitivity range', r.phase_percent_range.map(x => signed(x) + '%').join(' to ')); detail('Records scanned', (r.counts.records_scanned || 0).toLocaleString()); detail('Eligible variant records', (r.counts.eligible_variant_records || 0).toLocaleString()); detail('Outside padded TSS windows', (r.counts.outside_windows || 0).toLocaleString()); detail('Filtered / missing calls in windows', `${r.counts.filtered_calls || 0} / ${r.counts.missing_calls || 0}`); detail('Unphased heterozygotes', r.counts.unphased_heterozygotes || 0); detail('Reference calls / duplicate calls', `${r.counts.reference_calls || 0} / ${r.counts.duplicate_calls || 0}`); detail('Median-imputed fitted genes', r.median_imputed_gene_ids.join(', ')); detail('New GI inferences', r.api_requests); detail('Job ID', job.id);
+  detail('Sample', r.sample); detail('Model', r.model === 'fdr_genes_ridge' ? 'Selected genes (57)' : 'All genes (3,036)'); detail('Assembly', 'GRCh38 · Ensembl 116'); detail('Phase draws', r.phase_draws); detail('Phase sensitivity range', r.phase_percent_range.map(x => signed(x) + '%').join(' to ')); detail('Records scanned', (r.counts.records_scanned || 0).toLocaleString()); detail('Eligible variant records', (r.counts.eligible_variant_records || 0).toLocaleString()); detail('Outside padded TSS windows', (r.counts.outside_windows || 0).toLocaleString()); detail('Filtered / missing calls in windows', `${r.counts.filtered_calls || 0} / ${r.counts.missing_calls || 0}`); detail('Unphased heterozygotes', r.counts.unphased_heterozygotes || 0); detail('Reference calls / duplicate calls', `${r.counts.reference_calls || 0} / ${r.counts.duplicate_calls || 0}`); detail('Median-imputed fitted genes', r.median_imputed_gene_ids.join(', ')); detail('New GI inferences', r.api_requests); detail('Job ID', job.id);
   $('assumptions').replaceChildren(...r.assumptions.map(text => { const li = document.createElement('li'); li.textContent = text; return li; }));
 }
 async function poll(id) {

@@ -22,7 +22,7 @@ from typing import Annotated, Literal
 
 import pysam
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -44,6 +44,19 @@ LOG = logging.getLogger("gi_web")
 ROOT = Path(__file__).resolve().parents[1]
 MAX_UPLOAD = 512 * 1024**2
 TERMINAL = {"complete", "failed", "cancelled"}
+
+
+def reported_result(result):
+    """Expose relative effects only, including for results saved by older servers."""
+    absolute_fields = {
+        "reference_predicted_years",
+        "modified_predicted_years",
+        "frozen_reference_predicted_years",
+    }
+    return {
+        **{key: value for key, value in result.items() if key not in absolute_fields},
+        "result_schema_version": 2,
+    }
 
 
 def now():
@@ -127,7 +140,10 @@ class JobManager:
         with self.lock:
             if job_id not in self.jobs:
                 raise HTTPException(404, "Job not found")
-            return dict(self.jobs[job_id])
+            job = dict(self.jobs[job_id])
+            if "result" in job:
+                job["result"] = reported_result(job["result"])
+            return job
 
     def enqueue(self, job_id):
         self.cancel_events[job_id] = threading.Event()
@@ -304,11 +320,12 @@ class JobManager:
                 stage="comparing",
                 message="Applying frozen regression weights and calculating the reference-relative change.",
             )
-            result = compare_predictions(
-                self.predictor, job["model"], plan, expressions, job["phase_draws"]
+            result = reported_result(
+                compare_predictions(
+                    self.predictor, job["model"], plan, expressions, job["phase_draws"]
+                )
             )
             result.update(
-                result_schema_version=1,
                 job_id=job_id,
                 model=job["model"],
                 sample=job["sample"],
@@ -457,7 +474,6 @@ def create_app(manager=None):
                     "id": model,
                     "features": len(m.predictor.weights[model]),
                     "human_windows": len(m.predictor.model_windows(model)),
-                    "reference_years": m.predictor.specs[model]["predicted_years"],
                 }
                 for model in MODELS
             ],
@@ -522,9 +538,9 @@ def create_app(manager=None):
         job = service(request).snapshot(identifier(job_id))
         if job["status"] != "complete":
             raise HTTPException(409, "Result is not ready.")
-        return FileResponse(
-            service(request).state / "jobs" / job_id / "result.json",
-            filename=f"gi-lifespan-{job_id}.json",
+        return JSONResponse(
+            job["result"],
+            headers={"Content-Disposition": f'attachment; filename="gi-lifespan-{job_id}.json"'},
         )
 
     @app.get("/api/jobs/{job_id}/genes.csv")
