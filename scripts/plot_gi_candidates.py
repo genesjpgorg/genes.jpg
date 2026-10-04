@@ -73,6 +73,8 @@ def main():
     )
     for extension in ["png", "svg", "pdf"]:
         fig.savefig(out / f"lifespan_expression.{extension}", dpi=200)
+    svg = out / "lifespan_expression.svg"
+    svg.write_text("\n".join(line.rstrip() for line in svg.read_text().splitlines()) + "\n")
     plt.close(fig)
 
 

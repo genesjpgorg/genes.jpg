@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "ensembl_release": 116,
+  "model": "g0-expression-8192",
+  "description": "Homo sapiens primary hepatocytes, untreated, bulk RNA-seq.",
+  "sequence_name": "orthologue_tss_window",
+  "flank_bp": 40960,
+  "max_species": 50,
+  "max_species_per_order": 10,
+  "min_species_valid_windows": 1000,
+  "min_gene_species_fraction": 0.8,
+  "min_gene_orders": 4,
+  "max_window_n_fraction": 0.01,
+  "max_core_n_fraction": 0.0,
+  "anage_table": "data/datasets/_anage/anage_longevity_genomes.parquet",
+  "output": "data/datasets/gi-hepatocytes-ensembl116"
+}

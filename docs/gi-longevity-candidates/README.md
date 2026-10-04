@@ -19,4 +19,4 @@ uv sync --extra analysis
 uv run python scripts/plot_gi_candidates.py
 ```
 
-An 8-bp block-shuffle experiment will test whether these associations persist after rearranging sequence near the TSS while retaining block composition. The candidate set and plotted baseline are fixed before that experiment.
+An [8-bp block-shuffle experiment](shuffle-design.md) tests whether these associations persist after rearranging sequence near the TSS while retaining block composition. The candidate set and plotted baseline were fixed before that experiment.
