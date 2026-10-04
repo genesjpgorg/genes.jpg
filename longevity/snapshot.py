@@ -57,7 +57,9 @@ def snapshot(dataset, comparison, out, threads=8):
     for row in species.to_dict("records"):
         for field in ("scientific_name", "class", "order", "family"):
             current = current_species.loc[row["ncbi_taxid"], field]
-            if current != row[field]:
+            current = None if pd.isna(current) else current
+            old = None if pd.isna(row[field]) else row[field]
+            if current != old:
                 differences.append(
                     {
                         "ncbi_taxid": row["ncbi_taxid"],
